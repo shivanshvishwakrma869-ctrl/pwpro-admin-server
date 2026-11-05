@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PW Pro — Key Management Admin Panel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    body {
+      background-color: #0a0a0a;
+      color: #f5f5f5;
+      padding: 24px;
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 24px;
+      border-bottom: 1px solid #262626;
+      margin-bottom: 28px;
+    }
+    .brand h1 {
+      font-size: 24px;
+      font-weight: 800;
+      color: #22C55E;
+      letter-spacing: -0.5px;
+    }
+    .brand p {
+      font-size: 13px;
+      color: #a3a3a3;
+      margin-top: 4px;
+    }
+    .logout-btn {
+      background: #171717;
+      border: 1px solid #333;
+      color: #f5f5f5;
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+    }
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    .stat-card {
+      background: #171717;
+      border: 1px solid #262626;
+      border-radius: 14px;
+      padding: 20px;
+    }
+    .stat-card .label {
+      font-size: 12px;
+      font-weight: 700;
+      color: #a3a3a3;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .stat-card .value {
+      font-size: 32px;
+      font-weight: 800;
+      margin-top: 8px;
+    }
+    .val-total { color: #f5f5f5; }
+    .val-available { color: #22C55E; }
+    .val-used { color: #F59E0B; }
+
+    /* Generator Card */
+    .section-card {
+      background: #171717;
+      border: 1px solid #262626;
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 28px;
+    }
+    .section-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .form-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      align-items: end;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .form-group label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #a3a3a3;
+    }
+    input, select {
+      background: #0a0a0a;
+      border: 1px solid #333;
+      color: #f5f5f5;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+    }
+    input:focus, select:focus {
+      border-color: #22C55E;
+    }
+    .btn-primary {
+      background: #22C55E;
+      color: #000;
+      border: none;
+      padding: 11px 20px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: opacity 0.15s;
+    }
+    .btn-primary:hover {
+      opacity: 0.9;
+    }
+
+    /* Table */
+    .table-container {
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      text-align: left;
+    }
+    th {
+      padding: 12px 14px;
+      color: #a3a3a3;
+      font-weight: 700;
+      border-bottom: 1px solid #262626;
+      font-size: 11px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    td {
+      padding: 14px;
+      border-bottom: 1px solid #1f1f1f;
+      vertical-align: middle;
+    }
+    .key-badge {
+      font-family: monospace;
+      font-weight: 700;
+      font-size: 14px;
+      color: #f5f5f5;
+      background: #0a0a0a;
+      padding: 4px 8px;
+      border-radius: 6px;
+      border: 1px solid #262626;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .status-badge {
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      display: inline-block;
+    }
+    .status-available {
+      background: rgba(34, 197, 94, 0.15);
+      color: #4ADE80;
+    }
+    .status-used {
+      background: rgba(245, 158, 11, 0.15);
+      color: #FBBF24;
+    }
+    .device-id {
+      font-family: monospace;
+      font-size: 11px;
+      color: #a3a3a3;
+      max-width: 160px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .actions-cell {
+      display: flex;
+      gap: 8px;
+    }
+    .action-btn {
+      background: #262626;
+      border: none;
+      color: #f5f5f5;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .action-btn:hover {
+      background: #333;
+    }
+    .btn-danger {
+      color: #ef4444;
+    }
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, 0.15);
+    }
+
+    /* Login Modal */
+    #loginOverlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+    }
+    .login-box {
+      background: #171717;
+      border: 1px solid #262626;
+      border-radius: 16px;
+      padding: 32px;
+      width: 100%;
+      max-width: 360px;
+      text-align: center;
+    }
+    .login-box h2 {
+      font-size: 20px;
+      font-weight: 800;
+      color: #22C55E;
+      margin-bottom: 8px;
+    }
+    .login-box p {
+      font-size: 13px;
+      color: #a3a3a3;
+      margin-bottom: 20px;
+    }
+    .login-box input {
+      width: 100%;
+      margin-bottom: 16px;
+    }
+    .login-box button {
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Admin Login Overlay -->
+  <div id="loginOverlay">
+    <div class="login-box">
+      <h2>PW Pro Admin</h2>
+      <p>Enter your admin password to manage single-use activation keys.</p>
+      <input type="password" id="adminPasswordInput" placeholder="Password (default: shivansh123)" onkeydown="if(event.key==='Enter')login()">
+      <button class="btn-primary" onclick="login()">Enter Dashboard</button>
+    </div>
+  </div>
+
+  <div class="container" id="mainContent" style="display: none;">
+    <header>
+      <div class="brand">
+        <h1>PW Pro Key Manager</h1>
+        <p>Single-use device activation panel for PW Pro Android App</p>
+      </div>
+      <button class="logout-btn" onclick="logout()">Lock Admin</button>
+    </header>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="label">Total Generated Keys</div>
+        <div class="value val-total" id="statTotal">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Available (Unused)</div>
+        <div class="value val-available" id="statAvailable">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Activated (Used)</div>
+        <div class="value val-used" id="statUsed">0</div>
+      </div>
+    </div>
+
+    <!-- Generator Section -->
+    <div class="section-card">
+      <div class="section-title">⚡ Generate Activation Keys</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Custom Key (Optional)</label>
+          <input type="text" id="customKeyInput" placeholder="e.g. PWPRO-SPECIAL-2026">
+        </div>
+        <div class="form-group">
+          <label>Batch Prefix</label>
+          <input type="text" id="prefixInput" value="PWPRO" placeholder="PWPRO">
+        </div>
+        <div class="form-group">
+          <label>Bulk Count</label>
+          <select id="countInput">
+            <option value="1">1 Key</option>
+            <option value="5" selected>5 Keys</option>
+            <option value="10">10 Keys</option>
+            <option value="25">25 Keys</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Note / Student</label>
+          <input type="text" id="noteInput" placeholder="e.g. Arjuna Batch 2026">
+        </div>
+        <button class="btn-primary" onclick="generateKeys()">
+          <span>+ Generate Keys</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Keys Table Section -->
+    <div class="section-card">
+      <div class="section-title">🔑 Live Keys Directory</div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Activation Key</th>
+              <th>Status</th>
+              <th>Bound Device ID</th>
+              <th>Activated Date</th>
+              <th>Note</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="keysTableBody">
+            <tr>
+              <td colspan="6" style="text-align: center; color: #a3a3a3;">Loading keys...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let adminToken = localStorage.getItem('pwpro_admin_pwd') || '';
+
+    if (adminToken) {
+      checkAndLoad();
+    }
+
+    function login() {
+      const pwd = document.getElementById('adminPasswordInput').value.trim();
+      if (!pwd) return alert('Please enter password.');
+      adminToken = pwd;
+      localStorage.setItem('pwpro_admin_pwd', pwd);
+      checkAndLoad();
+    }
+
+    function logout() {
+      localStorage.removeItem('pwpro_admin_pwd');
+      adminToken = '';
+      document.getElementById('loginOverlay').style.display = 'flex';
+      document.getElementById('mainContent').style.display = 'none';
+    }
+
+    async function checkAndLoad() {
+      try {
+        const res = await fetch('/api/admin/keys', {
+          headers: { 'x-admin-password': adminToken }
+        });
+        if (res.ok) {
+          document.getElementById('loginOverlay').style.display = 'none';
+          document.getElementById('mainContent').style.display = 'block';
+          const data = await res.json();
+          renderData(data);
+        } else {
+          alert('Incorrect admin password.');
+          logout();
+        }
+      } catch (err) {
+        alert('Server connection error.');
+      }
+    }
+
+    function renderData(data) {
+      document.getElementById('statTotal').innerText = data.stats.total;
+      document.getElementById('statAvailable').innerText = data.stats.available;
+      document.getElementById('statUsed').innerText = data.stats.used;
+
+      const tbody = document.getElementById('keysTableBody');
+      if (data.keys.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #a3a3a3;">No keys generated yet. Create one above!</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = data.keys.map(k => `
+        <tr>
+          <td>
+            <span class="key-badge">
+              ${k.key}
+              <button class="action-btn" onclick="copyKey('${k.key}')" title="Copy Key">📋</button>
+            </span>
+          </td>
+          <td>
+            <span class="status-badge ${k.isUsed ? 'status-used' : 'status-available'}">
+              ${k.isUsed ? 'USED (Locked)' : 'AVAILABLE'}
+            </span>
+          </td>
+          <td>
+            <span class="device-id" title="${k.deviceId || 'Not activated yet'}">
+              ${k.deviceId || '—'}
+            </span>
+          </td>
+          <td style="color: #a3a3a3;">
+            ${k.usedAt ? new Date(k.usedAt).toLocaleString() : '—'}
+          </td>
+          <td style="color: #a3a3a3;">${k.note || '—'}</td>
+          <td>
+            <div class="actions-cell">
+              ${k.isUsed ? `<button class="action-btn" onclick="resetKey('${k.key}')" title="Release device binding">Reset</button>` : ''}
+              <button class="action-btn btn-danger" onclick="deleteKey('${k.key}')" title="Delete key">Delete</button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    async function generateKeys() {
+      const customKey = document.getElementById('customKeyInput').value.trim();
+      const prefix = document.getElementById('prefixInput').value.trim();
+      const count = document.getElementById('countInput').value;
+      const note = document.getElementById('noteInput').value.trim();
+
+      const res = await fetch('/api/admin/keys', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-password': adminToken
+        },
+        body: JSON.stringify({ customKey, prefix, count, note })
+      });
+
+      const json = await res.json();
+      if (res.ok) {
+        document.getElementById('customKeyInput').value = '';
+        checkAndLoad();
+      } else {
+        alert(json.error || 'Failed to generate keys.');
+      }
+    }
+
+    async function resetKey(key) {
+      if (!confirm(`Reset key ${key}? This will unbind it from its device and allow it to be activated once again.`)) return;
+
+      const res = await fetch('/api/admin/keys/reset', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-password': adminToken
+        },
+        body: JSON.stringify({ key })
+      });
+      if (res.ok) checkAndLoad();
+    }
+
+    async function deleteKey(key) {
+      if (!confirm(`Delete key ${key}? This key will be revoked permanently.`)) return;
+
+      const res = await fetch('/api/admin/keys/' + encodeURIComponent(key), {
+        method: 'DELETE',
+        headers: { 'x-admin-password': adminToken }
+      });
+      if (res.ok) checkAndLoad();
+    }
+
+    function copyKey(key) {
+      navigator.clipboard.writeText(key).then(() => {
+        alert(`Copied to clipboard: ${key}`);
+      });
+    }
+  </script>
+</body>
+</html>
