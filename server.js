@@ -18,10 +18,14 @@ app.use(express.static(path.join(__dirname, 'public')));
 const pool = new Pool({
   connectionString: DATABASE_URL,
   ssl: { rejectUnauthorized: false },
+  max: 5,
+  idleTimeoutMillis: 30000,
 });
 
 // Auto-initialize DB Table
-async function initDb() {
+let isTableInitialized = false;
+async function ensureDb() {
+  if (isTableInitialized) return;
   try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS activation_keys (
@@ -33,17 +37,17 @@ async function initDb() {
         note TEXT
       );
     `);
-    console.log('✅ Connected to Neon PostgreSQL & verified activation_keys table.');
+    isTableInitialized = true;
   } catch (err) {
-    console.error('❌ Neon PostgreSQL initialization error:', err.message);
+    console.error('Neon PostgreSQL table check error:', err.message);
   }
 }
-initDb();
 
 // ----------------------
 // 1. MOBILE APP ACTIVATION ENDPOINT
 // ----------------------
 app.post('/api/activate', async (req, res) => {
+  await ensureDb();
   const { key, deviceId } = req.body;
 
   if (!key || !deviceId) {
@@ -124,6 +128,7 @@ function checkAdminAuth(req, res, next) {
 
 // Get all keys & stats
 app.get('/api/admin/keys', checkAdminAuth, async (req, res) => {
+  await ensureDb();
   try {
     const keysResult = await pool.query(
       'SELECT key, is_used AS "isUsed", device_id AS "deviceId", created_at AS "createdAt", used_at AS "usedAt", note FROM activation_keys ORDER BY created_at DESC'
@@ -146,6 +151,7 @@ app.get('/api/admin/keys', checkAdminAuth, async (req, res) => {
 
 // Add or Generate Keys
 app.post('/api/admin/keys', checkAdminAuth, async (req, res) => {
+  await ensureDb();
   const { customKey, count = 1, prefix = 'PWPRO', note = '' } = req.body;
   const createdKeys = [];
 
@@ -196,6 +202,7 @@ app.post('/api/admin/keys', checkAdminAuth, async (req, res) => {
 
 // Delete or Revoke Key
 app.delete('/api/admin/keys/:key', checkAdminAuth, async (req, res) => {
+  await ensureDb();
   const targetKey = req.params.key.trim().toUpperCase();
 
   try {
@@ -214,6 +221,7 @@ app.delete('/api/admin/keys/:key', checkAdminAuth, async (req, res) => {
 
 // Reset key (unbind device to allow re-use)
 app.post('/api/admin/keys/reset', checkAdminAuth, async (req, res) => {
+  await ensureDb();
   const { key } = req.body;
   if (!key) return res.status(400).json({ error: 'Key is required' });
 
@@ -246,11 +254,16 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`\n===========================================`);
-  console.log(`🚀 PW Pro Admin Server running on port ${PORT}`);
-  console.log(`🔑 Web Admin Panel: http://localhost:${PORT}`);
-  console.log(`🗄️  Connected to Neon PostgreSQL Database`);
-  console.log(`🛡️  Admin Password: ${ADMIN_PASSWORD}`);
-  console.log(`===========================================\n`);
-});
+// Listen locally only (Vercel serverless invokes exported app)
+if (process.env.VERCEL !== '1') {
+  app.listen(PORT, () => {
+    console.log(`\n===========================================`);
+    console.log(`🚀 PW Pro Admin Server running on port ${PORT}`);
+    console.log(`🔑 Web Admin Panel: http://localhost:${PORT}`);
+    console.log(`🗄️  Connected to Neon PostgreSQL Database`);
+    console.log(`🛡️  Admin Password: ${ADMIN_PASSWORD}`);
+    console.log(`===========================================\n`);
+  });
+}
+
+module.exports = app;
