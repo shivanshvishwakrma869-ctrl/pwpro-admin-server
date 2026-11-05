@@ -1,64 +1,49 @@
 const express = require('express');
 const cors = require('cors');
-const fs = require('fs');
 const path = require('path');
+const { Pool } = require('pg');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'shivansh123';
+const DATABASE_URL =
+  process.env.DATABASE_URL ||
+  'postgresql://neondb_owner:npg_I0daJLCTt5Bj@ep-rough-night-bd4n8tz5-pooler.c-8.us-east-2.aws.neon.tech/neondb?sslmode=require';
 
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Database file storage
-const DATA_DIR = path.join(__dirname, 'data');
-const DB_FILE = path.join(DATA_DIR, 'keys.json');
+// PostgreSQL connection pool (Neon DB)
+const pool = new Pool({
+  connectionString: DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+});
 
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-
-function loadKeys() {
+// Auto-initialize DB Table
+async function initDb() {
   try {
-    if (fs.existsSync(DB_FILE)) {
-      const content = fs.readFileSync(DB_FILE, 'utf-8');
-      return JSON.parse(content || '[]');
-    }
-  } catch (e) {
-    console.error('Error loading keys database:', e);
-  }
-  return [];
-}
-
-function saveKeys(keys) {
-  try {
-    fs.writeFileSync(DB_FILE, JSON.stringify(keys, null, 2), 'utf-8');
-  } catch (e) {
-    console.error('Error saving keys database:', e);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS activation_keys (
+        key VARCHAR(100) PRIMARY KEY,
+        is_used BOOLEAN DEFAULT FALSE,
+        device_id VARCHAR(255),
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        used_at TIMESTAMPTZ,
+        note TEXT
+      );
+    `);
+    console.log('✅ Connected to Neon PostgreSQL & verified activation_keys table.');
+  } catch (err) {
+    console.error('❌ Neon PostgreSQL initialization error:', err.message);
   }
 }
-
-// Ensure default demo key exists if empty
-let dbKeys = loadKeys();
-if (dbKeys.length === 0) {
-  dbKeys = [
-    {
-      key: 'PWPRO-VIP-2026',
-      isUsed: false,
-      deviceId: null,
-      createdAt: new Date().toISOString(),
-      usedAt: null,
-      note: 'Demo Key',
-    },
-  ];
-  saveKeys(dbKeys);
-}
+initDb();
 
 // ----------------------
 // 1. MOBILE APP ACTIVATION ENDPOINT
 // ----------------------
-app.post('/api/activate', (req, res) => {
+app.post('/api/activate', async (req, res) => {
   const { key, deviceId } = req.body;
 
   if (!key || !deviceId) {
@@ -69,50 +54,61 @@ app.post('/api/activate', (req, res) => {
   }
 
   const cleanKey = key.trim().toUpperCase();
-  const keys = loadKeys();
-  const existingKey = keys.find((k) => k.key === cleanKey);
 
-  if (!existingKey) {
-    return res.status(404).json({
-      success: false,
-      error: 'Invalid activation key. Please check spelling or contact admin.',
-    });
-  }
+  try {
+    const result = await pool.query('SELECT * FROM activation_keys WHERE key = $1', [cleanKey]);
 
-  // If already used
-  if (existingKey.isUsed) {
-    // If used on the same device, allow re-activation (restore)
-    if (existingKey.deviceId === deviceId) {
-      return res.json({
-        success: true,
-        message: 'Device license verified and restored.',
-        key: cleanKey,
-        activatedAt: existingKey.usedAt,
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Invalid activation key. Please check spelling or contact admin.',
       });
     }
 
-    return res.status(403).json({
+    const row = result.rows[0];
+
+    // If key is already used
+    if (row.is_used) {
+      // If used on the same device, allow re-activation (restore license)
+      if (row.device_id === deviceId) {
+        return res.json({
+          success: true,
+          message: 'Device license verified and restored.',
+          key: cleanKey,
+          activatedAt: row.used_at,
+        });
+      }
+
+      return res.status(403).json({
+        success: false,
+        error: 'This key has already been activated on another device and cannot be reused.',
+      });
+    }
+
+    // Mark key as used & bind deviceId
+    const now = new Date().toISOString();
+    await pool.query(
+      'UPDATE activation_keys SET is_used = TRUE, device_id = $1, used_at = $2 WHERE key = $3',
+      [deviceId, now, cleanKey]
+    );
+
+    return res.json({
+      success: true,
+      message: 'App activated successfully! Welcome to PW Pro.',
+      key: cleanKey,
+      activatedAt: now,
+    });
+  } catch (err) {
+    console.error('Activation DB error:', err);
+    return res.status(500).json({
       success: false,
-      error: 'This key has already been activated on another device and cannot be reused.',
+      error: 'Internal server error while activating key.',
     });
   }
-
-  // Consume key for this device
-  existingKey.isUsed = true;
-  existingKey.deviceId = deviceId;
-  existingKey.usedAt = new Date().toISOString();
-  saveKeys(keys);
-
-  return res.json({
-    success: true,
-    message: 'App activated successfully! Welcome to PW Pro.',
-    key: cleanKey,
-    activatedAt: existingKey.usedAt,
-  });
 });
 
 // ----------------------
-// 2. ADMIN PANEL AUTH MIDDLEWARE
+// 2. ADMIN AUTH MIDDLEWARE
 // ----------------------
 function checkAdminAuth(req, res, next) {
   const authHeader = req.headers['x-admin-password'] || req.query.adminPassword;
@@ -127,110 +123,134 @@ function checkAdminAuth(req, res, next) {
 // ----------------------
 
 // Get all keys & stats
-app.get('/api/admin/keys', checkAdminAuth, (req, res) => {
-  const keys = loadKeys();
-  const total = keys.length;
-  const used = keys.filter((k) => k.isUsed).length;
-  const available = total - used;
+app.get('/api/admin/keys', checkAdminAuth, async (req, res) => {
+  try {
+    const keysResult = await pool.query(
+      'SELECT key, is_used AS "isUsed", device_id AS "deviceId", created_at AS "createdAt", used_at AS "usedAt", note FROM activation_keys ORDER BY created_at DESC'
+    );
+    const keys = keysResult.rows;
 
-  res.json({
-    stats: { total, used, available },
-    keys: keys.reverse(), // latest first
-  });
+    const total = keys.length;
+    const used = keys.filter((k) => k.isUsed).length;
+    const available = total - used;
+
+    res.json({
+      stats: { total, used, available },
+      keys,
+    });
+  } catch (err) {
+    console.error('Fetch keys error:', err);
+    res.status(500).json({ error: 'Failed to retrieve keys from database.' });
+  }
 });
 
 // Add or Generate Keys
-app.post('/api/admin/keys', checkAdminAuth, (req, res) => {
+app.post('/api/admin/keys', checkAdminAuth, async (req, res) => {
   const { customKey, count = 1, prefix = 'PWPRO', note = '' } = req.body;
-  const keys = loadKeys();
   const createdKeys = [];
 
-  if (customKey && customKey.trim()) {
-    const formatted = customKey.trim().toUpperCase();
-    if (keys.some((k) => k.key === formatted)) {
-      return res.status(400).json({ error: `Key "${formatted}" already exists.` });
-    }
+  try {
+    if (customKey && customKey.trim()) {
+      const formatted = customKey.trim().toUpperCase();
 
-    const newKey = {
-      key: formatted,
-      isUsed: false,
-      deviceId: null,
-      createdAt: new Date().toISOString(),
-      usedAt: null,
-      note: note || 'Custom Admin Key',
-    };
-    keys.push(newKey);
-    createdKeys.push(newKey);
-  } else {
-    // Generate bulk random keys
-    const numToGen = Math.min(Math.max(parseInt(count) || 1, 1), 50);
-    for (let i = 0; i < numToGen; i++) {
-      const part1 = Math.random().toString(36).substring(2, 6).toUpperCase();
-      const part2 = Math.random().toString(36).substring(2, 6).toUpperCase();
-      const generated = `${prefix.trim().toUpperCase()}-${part1}-${part2}`;
+      const exists = await pool.query('SELECT key FROM activation_keys WHERE key = $1', [formatted]);
+      if (exists.rows.length > 0) {
+        return res.status(400).json({ error: `Key "${formatted}" already exists.` });
+      }
 
-      if (!keys.some((k) => k.key === generated)) {
-        const newEntry = {
-          key: generated,
-          isUsed: false,
-          deviceId: null,
-          createdAt: new Date().toISOString(),
-          usedAt: null,
-          note: note || 'Auto-generated',
-        };
-        keys.push(newEntry);
-        createdKeys.push(newEntry);
+      const insertRes = await pool.query(
+        'INSERT INTO activation_keys (key, is_used, note) VALUES ($1, FALSE, $2) RETURNING key, is_used AS "isUsed", created_at AS "createdAt", note',
+        [formatted, note || 'Custom Admin Key']
+      );
+      createdKeys.push(insertRes.rows[0]);
+    } else {
+      const numToGen = Math.min(Math.max(parseInt(count) || 1, 1), 50);
+
+      for (let i = 0; i < numToGen; i++) {
+        const part1 = Math.random().toString(36).substring(2, 6).toUpperCase();
+        const part2 = Math.random().toString(36).substring(2, 6).toUpperCase();
+        const generated = `${prefix.trim().toUpperCase()}-${part1}-${part2}`;
+
+        try {
+          const insertRes = await pool.query(
+            'INSERT INTO activation_keys (key, is_used, note) VALUES ($1, FALSE, $2) RETURNING key, is_used AS "isUsed", created_at AS "createdAt", note',
+            [generated, note || 'Auto-generated']
+          );
+          createdKeys.push(insertRes.rows[0]);
+        } catch (e) {
+          // ignore unique constraint collisions on random string
+        }
       }
     }
-  }
 
-  saveKeys(keys);
-  res.json({
-    success: true,
-    message: `Generated ${createdKeys.length} new key(s).`,
-    created: createdKeys,
-  });
+    res.json({
+      success: true,
+      message: `Generated ${createdKeys.length} new key(s).`,
+      created: createdKeys,
+    });
+  } catch (err) {
+    console.error('Insert keys error:', err);
+    res.status(500).json({ error: 'Failed to generate keys in database.' });
+  }
 });
 
 // Delete or Revoke Key
-app.delete('/api/admin/keys/:key', checkAdminAuth, (req, res) => {
+app.delete('/api/admin/keys/:key', checkAdminAuth, async (req, res) => {
   const targetKey = req.params.key.trim().toUpperCase();
-  let keys = loadKeys();
-  const initialLength = keys.length;
 
-  keys = keys.filter((k) => k.key !== targetKey);
+  try {
+    const deleteRes = await pool.query('DELETE FROM activation_keys WHERE key = $1', [targetKey]);
 
-  if (keys.length === initialLength) {
-    return res.status(404).json({ error: 'Key not found.' });
+    if (deleteRes.rowCount === 0) {
+      return res.status(404).json({ error: 'Key not found.' });
+    }
+
+    res.json({ success: true, message: `Key ${targetKey} deleted.` });
+  } catch (err) {
+    console.error('Delete key error:', err);
+    res.status(500).json({ error: 'Failed to delete key.' });
   }
-
-  saveKeys(keys);
-  res.json({ success: true, message: `Key ${targetKey} deleted.` });
 });
 
-// Reset key (un-bind from device to allow re-use)
-app.post('/api/admin/keys/reset', checkAdminAuth, (req, res) => {
+// Reset key (unbind device to allow re-use)
+app.post('/api/admin/keys/reset', checkAdminAuth, async (req, res) => {
   const { key } = req.body;
   if (!key) return res.status(400).json({ error: 'Key is required' });
 
   const targetKey = key.trim().toUpperCase();
-  const keys = loadKeys();
-  const item = keys.find((k) => k.key === targetKey);
 
-  if (!item) return res.status(404).json({ error: 'Key not found' });
+  try {
+    const updateRes = await pool.query(
+      'UPDATE activation_keys SET is_used = FALSE, device_id = NULL, used_at = NULL WHERE key = $1',
+      [targetKey]
+    );
 
-  item.isUsed = false;
-  item.deviceId = null;
-  item.usedAt = null;
+    if (updateRes.rowCount === 0) {
+      return res.status(404).json({ error: 'Key not found.' });
+    }
 
-  saveKeys(keys);
-  res.json({ success: true, message: `Key ${targetKey} has been reset to unused.` });
+    res.json({ success: true, message: `Key ${targetKey} has been reset to unused.` });
+  } catch (err) {
+    console.error('Reset key error:', err);
+    res.status(500).json({ error: 'Failed to reset key.' });
+  }
+});
+
+// Health check
+app.get('/api/health', async (req, res) => {
+  try {
+    const dbTest = await pool.query('SELECT NOW()');
+    res.json({ status: 'ok', time: dbTest.rows[0].now, db: 'Neon PostgreSQL connected' });
+  } catch (e) {
+    res.status(500).json({ status: 'error', message: e.message });
+  }
 });
 
 app.listen(PORT, () => {
   console.log(`\n===========================================`);
   console.log(`🚀 PW Pro Admin Server running on port ${PORT}`);
   console.log(`🔑 Web Admin Panel: http://localhost:${PORT}`);
+  console.log(`🗄️  Connected to Neon PostgreSQL Database`);
   console.log(`🛡️  Admin Password: ${ADMIN_PASSWORD}`);
   console.log(`===========================================\n`);
 });
