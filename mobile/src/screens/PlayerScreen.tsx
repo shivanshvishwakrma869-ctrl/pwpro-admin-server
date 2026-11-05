@@ -11,7 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
+import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { useBookmarks } from '../context/BookmarkContext';
@@ -22,7 +22,7 @@ import { Lecture, Attachment } from '../types';
 const { width } = Dimensions.get('window');
 const VIDEO_HEIGHT = (width * 9) / 16;
 
-const SPEED_OPTIONS = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
+const SPEED_OPTIONS = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0];
 
 export default function PlayerScreen({ route, navigation }: any) {
   const { batchId, batchName, subjectId, subjectName, topicId, lecture } = route.params as {
@@ -39,12 +39,9 @@ export default function PlayerScreen({ route, navigation }: any) {
   const { isBookmarked, addBookmark, removeBookmark } = useBookmarks();
   const { downloadFile, isDownloaded } = useDownloads();
 
-  const videoRef = useRef<Video>(null);
+  const webViewRef = useRef<any>(null);
+  const WebViewComponent: any = WebView;
   const [streamUrl, setStreamUrl] = useState<string>('');
-  const [isPlaying, setIsPlaying] = useState<boolean>(true);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [positionMillis, setPositionMillis] = useState<number>(0);
-  const [durationMillis, setDurationMillis] = useState<number>(0);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
   const [showSpeedModal, setShowSpeedModal] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'details' | 'notes' | 'solutions'>('notes');
@@ -58,7 +55,6 @@ export default function PlayerScreen({ route, navigation }: any) {
   useEffect(() => {
     // Resolve direct origin CDN stream for fast, buffer-free playback
     const initStream = async () => {
-      setIsLoading(true);
       try {
         const fastUrl = await getFastStreamUrl({
           videoId: lecture.videoId,
@@ -110,40 +106,27 @@ export default function PlayerScreen({ route, navigation }: any) {
     }
   };
 
-  const onPlaybackStatusUpdate = (status: AVPlaybackStatus) => {
-    if (!status.isLoaded) {
-      if (status.error) {
-        console.error('Playback Error:', status.error);
-        setIsLoading(false);
-      }
-      return;
-    }
-    setIsPlaying(status.isPlaying);
-    setPositionMillis(status.positionMillis);
-    setDurationMillis(status.durationMillis || 0);
-    setIsLoading(status.isBuffering);
-  };
-
-  const handlePlayPause = async () => {
-    if (!videoRef.current) return;
-    if (isPlaying) {
-      await videoRef.current.pauseAsync();
-    } else {
-      await videoRef.current.playAsync();
+  const handleSeek = (seconds: number) => {
+    if (webViewRef.current) {
+      webViewRef.current.injectJavaScript(`
+        if (window.videoElement) {
+          window.videoElement.currentTime += ${seconds};
+        }
+        true;
+      `);
     }
   };
 
-  const handleSeek = async (seconds: number) => {
-    if (!videoRef.current) return;
-    const target = Math.max(0, Math.min(positionMillis + seconds * 1000, durationMillis));
-    await videoRef.current.setPositionAsync(target);
-  };
-
-  const handleSelectSpeed = async (speed: number) => {
+  const handleSelectSpeed = (speed: number) => {
     setPlaybackSpeed(speed);
     setShowSpeedModal(false);
-    if (videoRef.current) {
-      await videoRef.current.setRateAsync(speed, true);
+    if (webViewRef.current) {
+      webViewRef.current.injectJavaScript(`
+        if (window.videoElement) {
+          window.videoElement.playbackRate = ${speed};
+        }
+        true;
+      `);
     }
   };
 
@@ -191,12 +174,60 @@ export default function PlayerScreen({ route, navigation }: any) {
     });
   };
 
-  const formatTime = (millis: number) => {
-    const totalSeconds = Math.floor(millis / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-  };
+  const playerHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; background: #000; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; display: flex; align-items: center; justify-content: center; }
+    video { width: 100%; height: 100%; object-fit: contain; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
+</head>
+<body>
+  <video id="player" controls playsinline autoplay crossorigin="anonymous" controlslist="nodownload"></video>
+  <script>
+    const video = document.getElementById('player');
+    window.videoElement = video;
+    const stream = "${streamUrl}";
+
+    if (Hls.isSupported() && (stream.includes('.m3u8') || stream.includes('master') || stream.includes('playlist'))) {
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: true,
+        backBufferLength: 60
+      });
+      hls.loadSource(stream);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, function() {
+        video.play().catch(() => {});
+      });
+      hls.on(Hls.Events.ERROR, function(event, data) {
+        if (data.fatal) {
+          switch(data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              hls.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              hls.recoverMediaError();
+              break;
+            default:
+              hls.destroy();
+              video.src = stream;
+              break;
+          }
+        }
+      });
+    } else {
+      video.src = stream;
+      video.play().catch(() => {});
+    }
+  </script>
+</body>
+</html>
+  `;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -222,23 +253,18 @@ export default function PlayerScreen({ route, navigation }: any) {
       {/* Video Player */}
       <View style={styles.videoWrapper}>
         {streamUrl ? (
-          <Video
-            ref={videoRef}
+          <WebViewComponent
+            ref={webViewRef}
             style={styles.videoPlayer}
-            progressUpdateIntervalMillis={500}
-            source={{
-              uri: streamUrl,
-              headers: {
-                'client-type': 'WEB',
-                'User-Agent':
-                  'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-                Referer: 'https://pw.akkistudyx.in/',
-              },
-            }}
-            useNativeControls
-            resizeMode={ResizeMode.CONTAIN}
-            shouldPlay
-            onPlaybackStatusUpdate={onPlaybackStatusUpdate}
+            source={{ html: playerHtml }}
+            allowsFullscreenVideo={true}
+            allowsInlineMediaPlayback={true}
+            mediaPlaybackRequiresUserAction={false}
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+            originWhitelist={['*']}
+            mixedContentMode="always"
+            userAgent="Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
           />
         ) : (
           <View style={styles.videoPlaceholder}>
@@ -518,6 +544,7 @@ const styles = StyleSheet.create({
   videoPlayer: {
     width: '100%',
     height: '100%',
+    backgroundColor: '#000000',
   },
   videoPlaceholder: {
     flex: 1,
