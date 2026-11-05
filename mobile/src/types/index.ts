@@ -92,3 +92,14 @@ export interface DownloadItem {
   batchName?: string;
   subjectName?: string;
 }
+
+export interface WatchHistoryItem {
+  lectureId: string;
+  lecture: Lecture;
+  batchId: string;
+  batchName?: string;
+  subjectId?: string;
+  subjectName?: string;
+  topicId?: string;
+  timestamp: number;
+}

@@ -1,5 +1,6 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { encodePayload, decodePayload } from '../utils/crypto';
-import { Batch, Subject, Topic, Lecture, Attachment } from '../types';
+import { Batch, Subject, Topic, Lecture, Attachment, WatchHistoryItem } from '../types';
 
 export const BASE_URL = 'https://pw.akkistudyx.in';
 export const DEFAULT_TOKEN =
@@ -69,29 +70,94 @@ export async function fetchFromProxy<T = any>(apiPath: string, customToken?: str
   return (decoded ?? rawJson) as T;
 }
 
-// 1. Get All Batches
-export async function getBatches(): Promise<Batch[]> {
+// In-memory cache for ultra-fast navigation
+let memoryBatchesCache: Batch[] | null = null;
+
+// 1. Get All Batches with Smart Caching
+export async function getBatches(forceRefresh = false): Promise<Batch[]> {
   try {
+    if (!forceRefresh && memoryBatchesCache && memoryBatchesCache.length > 0) {
+      return memoryBatchesCache;
+    }
+
+    // Check local cache first for instant startup
+    if (!forceRefresh) {
+      try {
+        const cached = await AsyncStorage.getItem('ns_batches_cache_v4');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && Array.isArray(parsed.data) && parsed.data.length > 0) {
+            // Keep in memory and return
+            memoryBatchesCache = parsed.data;
+            if (Date.now() - parsed.timestamp < 6 * 3600 * 1000) {
+              return parsed.data;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Cache read warning:', e);
+      }
+    }
+
     const res = await fetchFromProxy<any>('/__batches_list__');
-    const list = Array.isArray(res) ? res : res?.batches || res?.data || [];
-    return list.map((item: any) => {
+    let list: any[] = [];
+    if (Array.isArray(res)) {
+      list = res;
+    } else if (res && typeof res === 'object') {
+      if (Array.isArray(res.batches)) {
+        list = res.batches;
+      } else if (Array.isArray(res.data)) {
+        list = res.data;
+      } else {
+        list = Object.values(res);
+      }
+    }
+
+    const mapped: Batch[] = list.map((item: any) => {
       const id = item._id || item.id || item.slug;
+      const classes = Array.isArray(item.classes)
+        ? item.classes
+        : item.class
+        ? [item.class]
+        : [];
       return {
         _id: id,
         id: id,
         name: item.name || item.title || 'Physics Wallah Batch',
         slug: item.slug || id,
-        language: typeof item.language === 'string' ? item.language : item.languageDetails?.name || 'Hinglish',
+        language:
+          typeof item.language === 'string'
+            ? item.language
+            : item.languageDetails?.name || 'Hinglish',
         image: formatImageUrl(item.previewImage || item.image),
-        classes: item.classes || [],
+        classes: classes,
         fee: item.fee?.total || 0,
-        byName: item.byName || 'Physics Wallah',
+        byName: item.byName || item.exam || item.category || 'Physics Wallah',
         startDate: item.startDate,
         endDate: item.endDate,
       };
     });
+
+    if (mapped.length > 0) {
+      memoryBatchesCache = mapped;
+      // Store compact snapshot (first 1500 batches) in AsyncStorage to avoid Android CursorWindow limits
+      AsyncStorage.setItem(
+        'ns_batches_cache_v4',
+        JSON.stringify({ timestamp: Date.now(), data: mapped.slice(0, 1500) })
+      ).catch(() => {});
+    }
+
+    return mapped;
   } catch (error) {
     console.error('getBatches failed:', error);
+    // If network fails, attempt to read old cache as fallback
+    try {
+      const cached = await AsyncStorage.getItem('ns_batches_cache_v4');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && Array.isArray(parsed.data)) return parsed.data;
+      }
+    } catch {}
     return [];
   }
 }
@@ -116,8 +182,12 @@ export async function getBatchDetails(batchIdOrSlug: string): Promise<Batch | nu
     return {
       _id: data._id || data.id || batchIdOrSlug,
       id: data._id || data.id || batchIdOrSlug,
-      name: data.name || data.title || 'Batch Details',
+      name: data.name || data.title || 'Physics Wallah Batch',
       slug: data.slug || batchIdOrSlug,
+      language:
+        typeof data.language === 'string'
+          ? data.language
+          : data.languageDetails?.name || 'Hinglish',
       image: formatImageUrl(data.previewImage || data.image),
       classes: data.classes || [],
       fee: data.fee?.total || 0,
@@ -249,11 +319,11 @@ export async function getFastStreamUrl(params: {
         }
       }
     } catch (e) {
-      // Fallback to proxy
+      // Fallback
     }
   }
 
-  // 3. Fallback to website proxy stream
+  // 3. Fallback to proxy stream
   return getStreamUrl(params);
 }
 
@@ -320,5 +390,46 @@ export async function getAttachments(params: {
   } catch (err) {
     console.error('getAttachments error:', err);
     return [];
+  }
+}
+
+// 7. Watch History Management (Continue Watching feature)
+export async function getWatchHistory(): Promise<WatchHistoryItem[]> {
+  try {
+    const stored = await AsyncStorage.getItem('pwpro_watch_history');
+    if (!stored) return [];
+    return JSON.parse(stored);
+  } catch {
+    return [];
+  }
+}
+
+export async function saveWatchHistory(item: WatchHistoryItem): Promise<void> {
+  try {
+    const history = await getWatchHistory();
+    const filtered = history.filter((h) => h.lectureId !== item.lectureId);
+    filtered.unshift(item);
+    // Keep last 15 items
+    const limited = filtered.slice(0, 15);
+    await AsyncStorage.setItem('pwpro_watch_history', JSON.stringify(limited));
+  } catch (e) {
+    console.error('Failed to save watch history', e);
+  }
+}
+
+// 8. Personal Lecture Notes (In-App Scratchpad feature)
+export async function getLectureNote(lectureId: string): Promise<string> {
+  try {
+    return (await AsyncStorage.getItem(`pwpro_note_${lectureId}`)) || '';
+  } catch {
+    return '';
+  }
+}
+
+export async function saveLectureNote(lectureId: string, noteText: string): Promise<void> {
+  try {
+    await AsyncStorage.setItem(`pwpro_note_${lectureId}`, noteText);
+  } catch (e) {
+    console.error('Failed to save note', e);
   }
 }

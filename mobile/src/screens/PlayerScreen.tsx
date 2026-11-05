@@ -9,6 +9,7 @@ import {
   Dimensions,
   Modal,
   Alert,
+  TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
@@ -16,7 +17,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { useBookmarks } from '../context/BookmarkContext';
 import { useDownloads } from '../context/DownloadContext';
-import { getFastStreamUrl, getStreamUrl, getAttachments } from '../services/api';
+import {
+  getFastStreamUrl,
+  getStreamUrl,
+  getAttachments,
+  saveWatchHistory,
+  getLectureNote,
+  saveLectureNote,
+} from '../services/api';
 import { Lecture, Attachment } from '../types';
 
 const { width } = Dimensions.get('window');
@@ -44,15 +52,32 @@ export default function PlayerScreen({ route, navigation }: any) {
   const [streamUrl, setStreamUrl] = useState<string>('');
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
   const [showSpeedModal, setShowSpeedModal] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'details' | 'notes' | 'solutions'>('notes');
+  const [activeTab, setActiveTab] = useState<'notes' | 'mynotes' | 'details'>('notes');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [loadingAttachments, setLoadingAttachments] = useState<boolean>(true);
+  const [personalNote, setPersonalNote] = useState<string>('');
+  const [noteSaved, setNoteSaved] = useState<boolean>(false);
 
   const lectureId = lecture._id || lecture.scheduleId || lecture.videoId || '';
   const bookmarked = isBookmarked(lectureId);
   const downloaded = isDownloaded(lecture.title);
 
   useEffect(() => {
+    // Record watch history for "Continue Watching"
+    saveWatchHistory({
+      lectureId,
+      lecture,
+      batchId,
+      batchName,
+      subjectId,
+      subjectName,
+      topicId,
+      timestamp: Date.now(),
+    });
+
+    // Load personal lecture note
+    getLectureNote(lectureId).then(setPersonalNote);
+
     // Resolve direct origin CDN stream for fast, buffer-free playback
     const initStream = async () => {
       try {
@@ -172,6 +197,13 @@ export default function PlayerScreen({ route, navigation }: any) {
       title: att.name || 'Lecture Notes',
       url: att.attachmentUrl,
     });
+  };
+
+  const handleNoteChange = (text: string) => {
+    setPersonalNote(text);
+    saveLectureNote(lectureId, text);
+    setNoteSaved(true);
+    setTimeout(() => setNoteSaved(false), 2000);
   };
 
   const playerHtml = `
@@ -354,7 +386,29 @@ export default function PlayerScreen({ route, navigation }: any) {
               { color: activeTab === 'notes' ? colors.accent : colors.textSecondary },
             ]}
           >
-            Class Notes ({attachments.length})
+            PDF Notes ({attachments.length})
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[
+            styles.tabItem,
+            activeTab === 'mynotes' && [styles.activeTab, { borderBottomColor: colors.accent }],
+          ]}
+          onPress={() => setActiveTab('mynotes')}
+        >
+          <Ionicons
+            name="create-outline"
+            size={16}
+            color={activeTab === 'mynotes' ? colors.accent : colors.textSecondary}
+          />
+          <Text
+            style={[
+              styles.tabText,
+              { color: activeTab === 'mynotes' ? colors.accent : colors.textSecondary },
+            ]}
+          >
+            My Notes
           </Text>
         </Pressable>
 
@@ -376,7 +430,7 @@ export default function PlayerScreen({ route, navigation }: any) {
               { color: activeTab === 'details' ? colors.accent : colors.textSecondary },
             ]}
           >
-            Lecture Info
+            Info
           </Text>
         </Pressable>
       </View>
@@ -441,6 +495,39 @@ export default function PlayerScreen({ route, navigation }: any) {
                 </View>
               ))
             )}
+          </View>
+        )}
+
+        {activeTab === 'mynotes' && (
+          <View style={[styles.notesContainer, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <View style={styles.notesHeader}>
+              <View style={styles.notesHeaderLeft}>
+                <Ionicons name="pencil" size={16} color={colors.accent} />
+                <Text style={[styles.notesTitle, { color: colors.text }]}>Personal Revision Scratchpad</Text>
+              </View>
+              {noteSaved && (
+                <View style={styles.savedPill}>
+                  <Ionicons name="checkmark-circle" size={13} color="#10b981" />
+                  <Text style={styles.savedText}>Saved</Text>
+                </View>
+              )}
+            </View>
+            <TextInput
+              style={[
+                styles.notesInput,
+                { color: colors.text, backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+              ]}
+              multiline
+              numberOfLines={8}
+              placeholder="Jot down important formulas, timestamps, and questions for this lecture..."
+              placeholderTextColor={colors.textSecondary}
+              value={personalNote}
+              onChangeText={handleNoteChange}
+              textAlignVertical="top"
+            />
+            <Text style={[styles.notesHint, { color: colors.textSecondary }]}>
+              Notes are auto-saved locally on your phone and available anytime.
+            </Text>
           </View>
         )}
 
@@ -683,6 +770,47 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  notesContainer: {
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  notesHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  notesHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  notesTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  savedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  savedText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#10b981',
+  },
+  notesInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+    fontSize: 13,
+    minHeight: 120,
+  },
+  notesHint: {
+    fontSize: 11,
+    marginTop: 8,
   },
   infoCard: {
     padding: 16,

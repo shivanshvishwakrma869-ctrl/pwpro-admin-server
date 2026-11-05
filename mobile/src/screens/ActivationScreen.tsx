@@ -178,32 +178,14 @@ export default function ActivationScreen() {
         </Pressable>
       </View>
 
-      {/* Get a key / Community support */}
+      {/* Get a key info */}
       <View style={styles.supportSection}>
         <Text style={[styles.supportTitle, { color: colors.textSecondary }]}>
-          DON'T HAVE AN ACTIVATION KEY?
+          ACTIVATION & ACCESS
         </Text>
         <Text style={[styles.supportDesc, { color: colors.textSecondary }]}>
-          Contact the administrator via Telegram or WhatsApp to request an access key:
+          Keys are issued directly by the administrator and are single-use, permanently locked to your unique device ID upon activation.
         </Text>
-
-        <View style={styles.supportButtonsRow}>
-          <Pressable
-            style={[styles.supportBtn, { backgroundColor: '#0284c7' }]}
-            onPress={() => Linking.openURL('https://t.me/AKKISTUDYX1')}
-          >
-            <Ionicons name="paper-plane" size={16} color="#fff" />
-            <Text style={styles.supportBtnText}>Telegram Admin</Text>
-          </Pressable>
-
-          <Pressable
-            style={[styles.supportBtn, { backgroundColor: '#16a34a' }]}
-            onPress={() => Linking.openURL('https://whatsapp.com/channel/0029Vb679UN9MF8swZIMLd40')}
-          >
-            <Ionicons name="logo-whatsapp" size={16} color="#fff" />
-            <Text style={styles.supportBtnText}>WhatsApp Group</Text>
-          </Pressable>
-        </View>
       </View>
 
       {/* Server Endpoint Config Modal */}

@@ -59,27 +59,50 @@ export function encodePayload(data: any): string {
   }
 }
 
-export function decodePayload(payload: string): any {
-  if (!payload || typeof payload !== 'string') return null;
+export function decodePayload(input: any): any {
+  if (!input) return null;
+
+  // Unpack payload property if response is wrapped in an object { payload: "..." }
+  let payloadStr: string = '';
+  if (typeof input === 'string') {
+    payloadStr = input;
+  } else if (typeof input === 'object') {
+    if (typeof input.payload === 'string' && input.payload.length > 0) {
+      payloadStr = input.payload;
+    } else if (typeof input.data === 'string' && input.data.length > 0) {
+      payloadStr = input.data;
+    } else {
+      // Already plain JSON object or array
+      return input;
+    }
+  } else {
+    return null;
+  }
+
   try {
-    let b64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+    let b64 = payloadStr.replace(/-/g, '+').replace(/_/g, '/');
     while (b64.length % 4) b64 += '=';
+
     const binary = typeof globalThis.atob === 'function' ? globalThis.atob(b64) : base64Decode(b64);
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) {
       bytes[i] = binary.charCodeAt(i);
     }
+
+    // 1. First attempt: Direct UTF-8 decode
     try {
       const direct = new TextDecoder().decode(bytes);
-      return JSON.parse(direct);
-    } catch {
-      const xorBytes = new Uint8Array(bytes.length);
-      for (let i = 0; i < bytes.length; i++) {
-        xorBytes[i] = bytes[i] ^ KEY_BYTES[i % KEY_BYTES.length];
-      }
-      const xorText = new TextDecoder().decode(xorBytes);
-      return JSON.parse(xorText);
+      const parsed = JSON.parse(direct);
+      if (parsed && typeof parsed === 'object') return parsed;
+    } catch {}
+
+    // 2. Second attempt: XOR shield decode
+    const xorBytes = new Uint8Array(bytes.length);
+    for (let i = 0; i < bytes.length; i++) {
+      xorBytes[i] = bytes[i] ^ KEY_BYTES[i % KEY_BYTES.length];
     }
+    const xorText = new TextDecoder().decode(xorBytes);
+    return JSON.parse(xorText);
   } catch (e) {
     console.error('decodePayload error:', e);
     return null;

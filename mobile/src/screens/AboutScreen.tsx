@@ -5,8 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
-  Linking,
-  Switch,
   Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,12 +16,12 @@ import { useAuth } from '../context/AuthContext';
 export default function AboutScreen() {
   const insets = useSafeAreaInsets();
   const { colors, isDark, toggleTheme } = useTheme();
-  const { license, deviceId, deactivateDevice } = useAuth();
+  const { license, deactivateDevice } = useAuth();
 
   const handleClearCache = async () => {
     Alert.alert(
       'Clear Cache',
-      'Are you sure you want to clear temporary cache? Your downloaded files and bookmarks will be kept.',
+      'Are you sure you want to clear temporary batch cache? Your downloaded files and bookmarks will be kept safely.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -31,7 +29,7 @@ export default function AboutScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await AsyncStorage.removeItem('ns_batches_cache');
+              await AsyncStorage.removeItem('ns_batches_cache_v4');
               Alert.alert('Cache Cleared', 'App cache was cleared successfully.');
             } catch (e) {
               console.error(e);
@@ -56,7 +54,7 @@ export default function AboutScreen() {
           <Ionicons name="school" size={36} color={colors.accentText} />
         </View>
         <Text style={[styles.appName, { color: colors.text }]}>PW Pro by Shivansh</Text>
-        <Text style={[styles.appVersion, { color: colors.textSecondary }]}>v1.0.0 (Native Edition)</Text>
+        <Text style={[styles.appVersion, { color: colors.textSecondary }]}>v1.0.0 (VIP Edition)</Text>
       </View>
 
       {/* License Section */}
@@ -71,11 +69,11 @@ export default function AboutScreen() {
           <View style={[styles.row, styles.borderBottom, { borderBottomColor: colors.cardBorder }]}>
             <View style={styles.rowLeft}>
               <Ionicons name="shield-checkmark" size={20} color={colors.accent} />
-              <Text style={[styles.rowLabel, { color: colors.text }]}>Status</Text>
+              <Text style={[styles.rowLabel, { color: colors.text }]}>License Status</Text>
             </View>
             <View style={[styles.licensePill, { backgroundColor: colors.accentLight }]}>
               <Text style={[styles.licensePillText, { color: colors.accentText }]}>
-                ACTIVE (Single Device)
+                ACTIVE (Hardware Bound)
               </Text>
             </View>
           </View>
@@ -83,10 +81,10 @@ export default function AboutScreen() {
           <View style={[styles.row, styles.borderBottom, { borderBottomColor: colors.cardBorder }]}>
             <View style={styles.rowLeft}>
               <Ionicons name="key-outline" size={20} color={colors.textSecondary} />
-              <Text style={[styles.rowLabel, { color: colors.text }]}>Key</Text>
+              <Text style={[styles.rowLabel, { color: colors.text }]}>Active Key</Text>
             </View>
             <Text style={[styles.licenseKeyValue, { color: colors.text }]}>
-              {license?.key || 'MASTER-KEY'}
+              {license?.key || 'PWPRO-VIP-2026'}
             </Text>
           </View>
 
@@ -121,65 +119,18 @@ export default function AboutScreen() {
             { backgroundColor: colors.card, borderColor: colors.cardBorder },
           ]}
         >
-          <View style={styles.row}>
+          <Pressable style={styles.row} onPress={toggleTheme}>
             <View style={styles.rowLeft}>
               <Ionicons
                 name={isDark ? 'moon-outline' : 'sunny-outline'}
                 size={20}
                 color={colors.accent}
               />
-              <Text style={[styles.rowLabel, { color: colors.text }]}>Dark Theme</Text>
+              <Text style={[styles.rowLabel, { color: colors.text }]}>Appearance Theme</Text>
             </View>
-            <Switch
-              value={isDark}
-              onValueChange={toggleTheme}
-              trackColor={{ false: '#767577', true: colors.accent }}
-              thumbColor="#ffffff"
-            />
-          </View>
-        </View>
-      </View>
-
-      {/* Community Section */}
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>COMMUNITY & SUPPORT</Text>
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: colors.card, borderColor: colors.cardBorder },
-          ]}
-        >
-          <Pressable
-            style={[styles.row, styles.borderBottom, { borderBottomColor: colors.cardBorder }]}
-            onPress={() => Linking.openURL('https://t.me/AKKISTUDYX1')}
-          >
-            <View style={styles.rowLeft}>
-              <Ionicons name="paper-plane" size={20} color="#0284c7" />
-              <Text style={[styles.rowLabel, { color: colors.text }]}>Official Telegram Channel</Text>
-            </View>
-            <Ionicons name="open-outline" size={18} color={colors.textSecondary} />
-          </Pressable>
-
-          <Pressable
-            style={[styles.row, styles.borderBottom, { borderBottomColor: colors.cardBorder }]}
-            onPress={() => Linking.openURL('https://whatsapp.com/channel/0029Vb679UN9MF8swZIMLd40')}
-          >
-            <View style={styles.rowLeft}>
-              <Ionicons name="logo-whatsapp" size={20} color="#16a34a" />
-              <Text style={[styles.rowLabel, { color: colors.text }]}>WhatsApp Updates Channel</Text>
-            </View>
-            <Ionicons name="open-outline" size={18} color={colors.textSecondary} />
-          </Pressable>
-
-          <Pressable
-            style={styles.row}
-            onPress={() => Linking.openURL('https://pw.akkistudyx.in/')}
-          >
-            <View style={styles.rowLeft}>
-              <Ionicons name="globe-outline" size={20} color={colors.accent} />
-              <Text style={[styles.rowLabel, { color: colors.text }]}>Official Web Portal</Text>
-            </View>
-            <Ionicons name="open-outline" size={18} color={colors.textSecondary} />
+            <Text style={[styles.themeValue, { color: colors.accent }]}>
+              {isDark ? 'Dark Mode' : 'Light Mode'}
+            </Text>
           </Pressable>
         </View>
       </View>
@@ -194,33 +145,39 @@ export default function AboutScreen() {
           ]}
         >
           <View style={styles.featureItem}>
-            <Text style={[styles.featureBullet, { color: colors.accentText }]}>✓</Text>
+            <Ionicons name="flash" size={16} color={colors.accent} />
             <Text style={[styles.featureText, { color: colors.text }]}>
-              Same authentic HD video streams from pw.akkistudyx.in
+              Zero-Buffer Direct Origin CDN Video Streaming
             </Text>
           </View>
           <View style={styles.featureItem}>
-            <Text style={[styles.featureBullet, { color: colors.accentText }]}>✓</Text>
+            <Ionicons name="cloud-download" size={16} color={colors.accent} />
             <Text style={[styles.featureText, { color: colors.text }]}>
-              Offline PDF notes and lecture download manager
+              Offline PDF class notes & lecture download manager
             </Text>
           </View>
           <View style={styles.featureItem}>
-            <Text style={[styles.featureBullet, { color: colors.accentText }]}>✓</Text>
+            <Ionicons name="document-text" size={16} color={colors.accent} />
             <Text style={[styles.featureText, { color: colors.text }]}>
-              In-app PDF viewer for DPPs & handwritten class notes
+              Built-in document reader for DPPs & revision sheets
             </Text>
           </View>
           <View style={styles.featureItem}>
-            <Text style={[styles.featureBullet, { color: colors.accentText }]}>✓</Text>
+            <Ionicons name="speedometer" size={16} color={colors.accent} />
             <Text style={[styles.featureText, { color: colors.text }]}>
-              Custom playback speeds (0.5x, 0.75x, 1.25x, 1.5x, 2.0x)
+              Custom playback speeds (0.5x up to 3.0x speed)
             </Text>
           </View>
           <View style={styles.featureItem}>
-            <Text style={[styles.featureBullet, { color: colors.accentText }]}>✓</Text>
+            <Ionicons name="bookmark" size={16} color={colors.accent} />
             <Text style={[styles.featureText, { color: colors.text }]}>
-              Persistent bookmarking across all subjects & batches
+              One-tap lecture bookmarking across all 14,000+ batches
+            </Text>
+          </View>
+          <View style={styles.featureItem}>
+            <Ionicons name="create" size={16} color={colors.accent} />
+            <Text style={[styles.featureText, { color: colors.text }]}>
+              In-app Personal Lecture Scratchpad for revision notes
             </Text>
           </View>
         </View>
@@ -228,7 +185,7 @@ export default function AboutScreen() {
 
       {/* Storage Management */}
       <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>DATA</Text>
+        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>STORAGE & CACHE</Text>
         <View
           style={[
             styles.card,
@@ -247,7 +204,7 @@ export default function AboutScreen() {
 
       <View style={styles.footer}>
         <Text style={[styles.footerText, { color: colors.textSecondary }]}>
-          PW Pro by Shivansh • Developed for Students
+          PW Pro by Shivansh • Student Edition
         </Text>
       </View>
     </ScrollView>
@@ -309,7 +266,10 @@ const styles = StyleSheet.create({
   licenseKeyValue: {
     fontSize: 13,
     fontWeight: '700',
-    fontFamily: 'System',
+  },
+  themeValue: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   row: {
     flexDirection: 'row',
@@ -335,10 +295,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     gap: 10,
-  },
-  featureBullet: {
-    fontSize: 14,
-    fontWeight: '900',
   },
   featureText: {
     fontSize: 13,

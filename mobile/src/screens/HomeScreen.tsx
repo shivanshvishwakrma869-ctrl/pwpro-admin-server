@@ -9,13 +9,13 @@ import {
   Image,
   ActivityIndicator,
   RefreshControl,
-  Linking,
+  ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
-import { getBatches } from '../services/api';
-import { Batch } from '../types';
+import { getBatches, getWatchHistory } from '../services/api';
+import { Batch, WatchHistoryItem } from '../types';
 
 export default function HomeScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
@@ -23,18 +23,23 @@ export default function HomeScreen({ navigation }: any) {
 
   const [batches, setBatches] = useState<Batch[]>([]);
   const [filteredBatches, setFilteredBatches] = useState<Batch[]>([]);
+  const [watchHistory, setWatchHistory] = useState<WatchHistoryItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const categories = ['All', 'JEE', 'NEET', 'Class 12', 'Class 11', 'Class 10'];
+  const categories = ['All', 'JEE', 'NEET', 'Class 12', 'Class 11', 'Class 10', 'Foundation', 'NDA'];
 
-  const loadData = async () => {
+  const loadData = async (force = false) => {
     try {
-      const data = await getBatches();
-      setBatches(data);
-      setFilteredBatches(data);
+      const [batchesData, historyData] = await Promise.all([
+        getBatches(force),
+        getWatchHistory(),
+      ]);
+      setBatches(batchesData);
+      setFilteredBatches(batchesData);
+      setWatchHistory(historyData);
     } catch (err) {
       console.error(err);
     } finally {
@@ -45,7 +50,12 @@ export default function HomeScreen({ navigation }: any) {
 
   useEffect(() => {
     loadData();
-  }, []);
+    const unsubscribe = navigation.addListener('focus', () => {
+      // Refresh history when navigating back to home
+      getWatchHistory().then(setWatchHistory).catch(() => {});
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   const handleSearch = (text: string) => {
     setSearchQuery(text);
@@ -64,6 +74,7 @@ export default function HomeScreen({ navigation }: any) {
       result = result.filter(
         (b) =>
           b.name.toLowerCase().includes(catLower) ||
+          b.byName?.toLowerCase().includes(catLower) ||
           (b.classes && b.classes.some((c) => c.toLowerCase().includes(catLower)))
       );
     }
@@ -72,7 +83,8 @@ export default function HomeScreen({ navigation }: any) {
       result = result.filter(
         (b) =>
           b.name.toLowerCase().includes(q) ||
-          b.language?.toLowerCase().includes(q)
+          b.language?.toLowerCase().includes(q) ||
+          b.byName?.toLowerCase().includes(q)
       );
     }
     setFilteredBatches(result);
@@ -80,7 +92,7 @@ export default function HomeScreen({ navigation }: any) {
 
   const onRefresh = () => {
     setRefreshing(true);
-    loadData();
+    loadData(true);
   };
 
   const renderHeader = () => (
@@ -89,7 +101,7 @@ export default function HomeScreen({ navigation }: any) {
         <View>
           <Text style={[styles.brandTitle, { color: colors.accent }]}>PW Pro by Shivansh</Text>
           <Text style={[styles.brandSubtitle, { color: colors.textSecondary }]}>
-            Physics Wallah Batches & Lectures
+            Physics Wallah VIP Batches & Lectures
           </Text>
         </View>
         <Pressable
@@ -126,23 +138,58 @@ export default function HomeScreen({ navigation }: any) {
         )}
       </View>
 
-      {/* Community Links Banner */}
-      <View style={styles.socialRow}>
-        <Pressable
-          style={[styles.socialPill, { backgroundColor: '#0284c7' }]}
-          onPress={() => Linking.openURL('https://t.me/AKKISTUDYX1')}
-        >
-          <Ionicons name="paper-plane" size={14} color="#fff" />
-          <Text style={styles.socialPillText}>Telegram Channel</Text>
-        </Pressable>
-        <Pressable
-          style={[styles.socialPill, { backgroundColor: '#16a34a' }]}
-          onPress={() => Linking.openURL('https://whatsapp.com/channel/0029Vb679UN9MF8swZIMLd40')}
-        >
-          <Ionicons name="logo-whatsapp" size={14} color="#fff" />
-          <Text style={styles.socialPillText}>WhatsApp Group</Text>
-        </Pressable>
-      </View>
+      {/* Continue Watching Feature */}
+      {watchHistory.length > 0 && (
+        <View style={styles.historySection}>
+          <View style={styles.historySectionHeader}>
+            <Ionicons name="time" size={16} color={colors.accent} />
+            <Text style={[styles.historyTitle, { color: colors.text }]}>Continue Watching</Text>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.historyList}>
+            {watchHistory.map((item) => (
+              <Pressable
+                key={item.lectureId}
+                style={[
+                  styles.historyCard,
+                  { backgroundColor: colors.card, borderColor: colors.cardBorder },
+                ]}
+                onPress={() =>
+                  navigation.navigate('Player', {
+                    batchId: item.batchId,
+                    batchName: item.batchName,
+                    subjectId: item.subjectId || '',
+                    subjectName: item.subjectName || '',
+                    topicId: item.topicId || '',
+                    lecture: item.lecture,
+                  })
+                }
+              >
+                <View style={styles.historyThumbWrap}>
+                  <Image
+                    source={{
+                      uri:
+                        item.lecture.videoDetails?.image ||
+                        'https://static.pw.live/5eb393ee95fab7468a79d189/ADMIN/4df42d8f-a9cb-4be3-9799-aeb11b152ca6.png',
+                    }}
+                    style={styles.historyThumb}
+                  />
+                  <View style={styles.historyPlayBadge}>
+                    <Ionicons name="play" size={12} color="#fff" />
+                  </View>
+                </View>
+                <View style={styles.historyDetails}>
+                  <Text style={[styles.historyLectureTitle, { color: colors.text }]} numberOfLines={1}>
+                    {item.lecture.title}
+                  </Text>
+                  <Text style={[styles.historyBatchName, { color: colors.textSecondary }]} numberOfLines={1}>
+                    {item.batchName || 'Physics Wallah'}
+                  </Text>
+                </View>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      )}
 
       {/* Categories */}
       <FlatList
@@ -179,79 +226,125 @@ export default function HomeScreen({ navigation }: any) {
 
       <View style={styles.sectionTitleRow}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>
-          Explore Batches ({filteredBatches.length})
+          {selectedCategory === 'All' ? 'All Batches' : `${selectedCategory} Batches`}
+        </Text>
+        <Text style={[styles.batchCount, { color: colors.textSecondary }]}>
+          {filteredBatches.length.toLocaleString()} Available
         </Text>
       </View>
     </View>
   );
 
-  const renderBatchCard = ({ item }: { item: Batch }) => (
+  const renderBatchItem = ({ item }: { item: Batch }) => (
     <Pressable
       style={[
         styles.batchCard,
-        { backgroundColor: colors.card, borderColor: colors.cardBorder },
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.cardBorder,
+        },
       ]}
-      onPress={() => navigation.navigate('BatchDetail', { batchId: item._id, batch: item })}
+      onPress={() =>
+        navigation.navigate('BatchDetail', {
+          batchId: item._id,
+          batchName: item.name,
+          batchSlug: item.slug,
+        })
+      }
     >
-      <Image source={{ uri: item.image }} style={styles.batchImage} resizeMode="cover" />
+      <Image
+        source={{ uri: item.image }}
+        style={styles.batchImage}
+        resizeMode="cover"
+      />
       <View style={styles.batchInfo}>
-        <Text style={[styles.batchName, { color: colors.text }]} numberOfLines={2}>
-          {item.name}
-        </Text>
-        <View style={styles.badgeRow}>
-          <View style={[styles.badge, { backgroundColor: colors.accentLight }]}>
-            <Text style={[styles.badgeText, { color: colors.accentText }]}>
-              {item.language || 'Hinglish'}
+        <View style={styles.tagRow}>
+          <View style={[styles.langBadge, { backgroundColor: colors.accentLight }]}>
+            <Text style={[styles.langText, { color: colors.accentText }]}>
+              {item.language}
             </Text>
           </View>
-          <Text style={[styles.byName, { color: colors.textSecondary }]}>
-            {item.byName || 'Physics Wallah'}
-          </Text>
+          {item.byName ? (
+            <Text style={[styles.byNameText, { color: colors.textSecondary }]} numberOfLines={1}>
+              {item.byName}
+            </Text>
+          ) : null}
+        </View>
+
+        <Text style={[styles.batchTitle, { color: colors.text }]} numberOfLines={2}>
+          {item.name}
+        </Text>
+
+        <View style={styles.cardFooter}>
+          <View style={styles.freeBadge}>
+            <Ionicons name="sparkles" size={12} color="#10B981" />
+            <Text style={styles.freeText}>Full Access</Text>
+          </View>
+          <View style={styles.exploreBtn}>
+            <Text style={[styles.exploreText, { color: colors.accent }]}>Explore</Text>
+            <Ionicons name="chevron-forward" size={14} color={colors.accent} />
+          </View>
         </View>
       </View>
     </Pressable>
   );
 
+  if (loading) {
+    return (
+      <View style={[styles.loadingCenter, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.accent} />
+        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+          Loading batches...
+        </Text>
+      </View>
+    );
+  }
+
   return (
-    <View
-      style={[
-        styles.container,
-        { backgroundColor: colors.background, paddingTop: insets.top },
-      ]}
-    >
-      {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={colors.accent} />
-          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-            Loading PW Batches...
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={filteredBatches}
-          keyExtractor={(item) => item._id}
-          numColumns={2}
-          columnWrapperStyle={styles.columnWrapper}
-          contentContainerStyle={styles.listContent}
-          ListHeaderComponent={renderHeader}
-          renderItem={renderBatchCard}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={colors.accent}
-            />
-          }
-          ListEmptyComponent={
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+      <FlatList
+        data={filteredBatches}
+        keyExtractor={(item) => item._id}
+        renderItem={renderBatchItem}
+        ListHeaderComponent={renderHeader}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        initialNumToRender={12}
+        maxToRenderPerBatch={12}
+        windowSize={9}
+        removeClippedSubviews={true}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />
+        }
+        ListEmptyComponent={
+          loading ? undefined : (
             <View style={styles.emptyContainer}>
-              <Ionicons name="school-outline" size={48} color={colors.textSecondary} />
-              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                No batches found matching "{searchQuery}"
+              <Ionicons
+                name={batches.length === 0 ? 'cloud-offline-outline' : 'search'}
+                size={48}
+                color={colors.textSecondary}
+              />
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                {batches.length === 0 ? 'Unable to load batches' : 'No batches found'}
               </Text>
+              <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
+                {batches.length === 0
+                  ? 'Please check your internet connection or pull down to refresh.'
+                  : 'Try searching with a different keyword or select "All".'}
+              </Text>
+              {batches.length === 0 && (
+                <Pressable
+                  style={[styles.retryBtn, { backgroundColor: colors.accent }]}
+                  onPress={() => loadData(true)}
+                >
+                  <Ionicons name="reload" size={16} color="#000" />
+                  <Text style={styles.retryBtnText}>Retry Loading</Text>
+                </Pressable>
+              )}
             </View>
-          }
-        />
-      )}
+          )
+        }
+      />
     </View>
   );
 }
@@ -260,36 +353,38 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  center: {
+  loadingCenter: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 12,
   },
   loadingText: {
-    marginTop: 12,
     fontSize: 14,
+    fontWeight: '500',
   },
   listContent: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     paddingBottom: 24,
   },
   headerContainer: {
-    paddingTop: 8,
-    marginBottom: 8,
+    paddingTop: 12,
+    paddingBottom: 8,
   },
   brandRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 14,
+    marginBottom: 16,
   },
   brandTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '800',
     letterSpacing: -0.5,
   },
   brandSubtitle: {
     fontSize: 12,
+    fontWeight: '500',
     marginTop: 2,
   },
   themeBtn: {
@@ -303,43 +398,82 @@ const styles = StyleSheet.create({
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    height: 44,
-    borderRadius: 12,
     borderWidth: 1,
-    marginBottom: 12,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 46,
+    marginBottom: 14,
   },
   searchInput: {
     flex: 1,
     marginLeft: 8,
     fontSize: 14,
+    height: '100%',
   },
-  socialRow: {
-    flexDirection: 'row',
-    gap: 8,
+  historySection: {
     marginBottom: 14,
   },
-  socialPill: {
-    flex: 1,
+  historySectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    borderRadius: 8,
     gap: 6,
+    marginBottom: 10,
   },
-  socialPillText: {
-    color: '#ffffff',
+  historyTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  historyList: {
+    gap: 10,
+  },
+  historyCard: {
+    width: 200,
+    borderRadius: 10,
+    borderWidth: 1,
+    overflow: 'hidden',
+    padding: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  historyThumbWrap: {
+    position: 'relative',
+    width: 52,
+    height: 38,
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
+  historyThumb: {
+    width: '100%',
+    height: '100%',
+  },
+  historyPlayBadge: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  historyDetails: {
+    flex: 1,
+  },
+  historyLectureTitle: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
+  },
+  historyBatchName: {
+    fontSize: 10,
+    marginTop: 2,
   },
   categoriesList: {
-    paddingVertical: 4,
     gap: 8,
-    marginBottom: 14,
+    paddingBottom: 14,
   },
   categoryChip: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 20,
     borderWidth: 1,
@@ -349,61 +483,114 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   sectionTitleRow: {
-    marginBottom: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    marginTop: 6,
+    marginBottom: 12,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
   },
-  columnWrapper: {
-    justifyContent: 'space-between',
-    gap: 10,
-    marginBottom: 10,
+  batchCount: {
+    fontSize: 12,
+    fontWeight: '500',
   },
   batchCard: {
-    flex: 1,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
     overflow: 'hidden',
+    marginBottom: 14,
   },
   batchImage: {
     width: '100%',
-    height: 110,
+    height: 150,
+    backgroundColor: '#1f2937',
   },
   batchInfo: {
-    padding: 10,
+    padding: 14,
   },
-  batchName: {
-    fontSize: 13,
-    fontWeight: '700',
-    lineHeight: 18,
-    minHeight: 36,
-  },
-  badgeRow: {
-    marginTop: 8,
+  tagRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 8,
   },
-  badge: {
-    paddingHorizontal: 6,
+  langBadge: {
+    paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,
   },
-  badgeText: {
-    fontSize: 10,
+  langText: {
+    fontSize: 11,
     fontWeight: '700',
   },
-  byName: {
-    fontSize: 10,
+  byNameText: {
+    fontSize: 11,
+    fontWeight: '500',
+    flex: 1,
+  },
+  batchTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    lineHeight: 22,
+    marginBottom: 12,
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(156, 163, 175, 0.2)',
+  },
+  freeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  freeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#10B981',
+  },
+  exploreBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  exploreText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 40,
+    paddingVertical: 60,
+    gap: 8,
   },
-  emptyText: {
-    marginTop: 12,
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    textAlign: 'center',
+    maxWidth: 240,
+  },
+  retryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginTop: 10,
+  },
+  retryBtnText: {
     fontSize: 14,
+    fontWeight: '700',
+    color: '#000000',
   },
 });
