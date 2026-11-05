@@ -5,7 +5,7 @@ const { Pool } = require('pg');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'shivansh123';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'shivansh@0426';
 const DATABASE_URL =
   process.env.DATABASE_URL ||
   'postgresql://neondb_owner:npg_I0daJLCTt5Bj@ep-rough-night-bd4n8tz5-pooler.c-8.us-east-2.aws.neon.tech/neondb?sslmode=require';
