@@ -36,6 +36,22 @@ export default function HomeScreen({ navigation }: any) {
 
   const categories = ['All', 'Physics Wallah', 'Next Toppers', 'JEE', 'NEET', 'Class 12', 'Class 11', 'Class 10', 'Foundation', 'NDA'];
 
+  const getCategoryIcon = (cat: string): keyof typeof Ionicons.glyphMap => {
+    switch (cat) {
+      case 'All': return 'grid-outline';
+      case 'Physics Wallah': return 'school-outline';
+      case 'Next Toppers': return 'trophy-outline';
+      case 'JEE': return 'calculator-outline';
+      case 'NEET': return 'medkit-outline';
+      case 'Class 12':
+      case 'Class 11':
+      case 'Class 10': return 'layers-outline';
+      case 'Foundation': return 'compass-outline';
+      case 'NDA': return 'shield-checkmark-outline';
+      default: return 'bookmark-outline';
+    }
+  };
+
   const loadData = async (force = false) => {
     try {
       const [batchesData, historyData] = await Promise.all([
@@ -126,66 +142,8 @@ export default function HomeScreen({ navigation }: any) {
     loadData(true);
   };
 
-  const renderHeader = () => (
-    <View style={styles.headerContainer}>
-      <View style={styles.brandRow}>
-        <View>
-          <Text style={[styles.brandTitle, { color: colors.accent }]}>PW Pro by Shivansh</Text>
-          <Text style={[styles.brandSubtitle, { color: colors.textSecondary }]}>
-            Physics Wallah VIP Batches & Lectures
-          </Text>
-        </View>
-        <Pressable
-          style={[styles.themeBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-          onPress={toggleTheme}
-        >
-          <Ionicons
-            name={isDark ? 'sunny-outline' : 'moon-outline'}
-            size={20}
-            color={isDark ? '#FACC15' : colors.text}
-          />
-        </Pressable>
-      </View>
-
-      {/* Live In-App Broadcast Announcement */}
-      {announcement && !dismissedBanner ? (
-        <View style={[styles.announcementBanner, { backgroundColor: colors.accentLight, borderColor: colors.accent }]}>
-          <View style={styles.announcementContent}>
-            <Ionicons name="megaphone" size={16} color={colors.accentText} />
-            <Text style={[styles.announcementText, { color: colors.accentText }]}>
-              {announcement}
-            </Text>
-          </View>
-          <Pressable onPress={() => setDismissedBanner(true)} hitSlop={10}>
-            <Ionicons name="close" size={16} color={colors.accentText} />
-          </Pressable>
-        </View>
-      ) : null}
-
-      {/* Search Bar */}
-      <View
-        style={[
-          styles.searchBox,
-          { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
-        ]}
-      >
-        <Ionicons name="search-outline" size={18} color={colors.textSecondary} />
-        <TextInput
-          style={[styles.searchInput, { color: colors.text }]}
-          placeholder="Search batches (Yakeen, Arjuna, Lakshya...)"
-          placeholderTextColor={colors.textSecondary}
-          value={searchQuery}
-          onChangeText={handleSearch}
-          returnKeyType="search"
-          onSubmitEditing={Keyboard.dismiss}
-        />
-        {searchQuery.length > 0 && (
-          <Pressable onPress={() => handleSearch('')}>
-            <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
-          </Pressable>
-        )}
-      </View>
-
+  const renderListHeader = () => (
+    <View style={styles.listHeaderWrap}>
       {/* Continue Watching Feature */}
       {watchHistory.length > 0 && (
         <View style={styles.historySection}>
@@ -239,39 +197,6 @@ export default function HomeScreen({ navigation }: any) {
         </View>
       )}
 
-      {/* Categories */}
-      <FlatList
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        data={categories}
-        keyExtractor={(item) => item}
-        contentContainerStyle={styles.categoriesList}
-        renderItem={({ item }) => {
-          const isSelected = selectedCategory === item;
-          return (
-            <Pressable
-              style={[
-                styles.categoryChip,
-                {
-                  backgroundColor: isSelected ? colors.accent : colors.card,
-                  borderColor: isSelected ? colors.accent : colors.cardBorder,
-                },
-              ]}
-              onPress={() => handleCategorySelect(item)}
-            >
-              <Text
-                style={[
-                  styles.categoryText,
-                  { color: isSelected ? '#000000' : colors.text },
-                ]}
-              >
-                {item}
-              </Text>
-            </Pressable>
-          );
-        }}
-      />
-
       <View style={styles.sectionTitleRow}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>
           {selectedCategory === 'All' ? 'All Batches' : `${selectedCategory} Batches`}
@@ -300,11 +225,17 @@ export default function HomeScreen({ navigation }: any) {
         })
       }
     >
-      <Image
-        source={{ uri: item.image }}
-        style={styles.batchImage}
-        resizeMode="cover"
-      />
+      <View style={styles.batchImageWrap}>
+        <Image
+          source={{ uri: item.image }}
+          style={styles.batchImage}
+          resizeMode="cover"
+        />
+        <View style={styles.imageOverlayBadge}>
+          <Ionicons name="sparkles" size={10} color="#000" />
+          <Text style={styles.vipBadgeText}>VIP UNLOCKED</Text>
+        </View>
+      </View>
       <View style={styles.batchInfo}>
         <View style={styles.tagRow}>
           <View style={[styles.langBadge, { backgroundColor: colors.accentLight }]}>
@@ -313,9 +244,12 @@ export default function HomeScreen({ navigation }: any) {
             </Text>
           </View>
           {item.byName ? (
-            <Text style={[styles.byNameText, { color: colors.textSecondary }]} numberOfLines={1}>
-              {item.byName}
-            </Text>
+            <View style={styles.educatorTag}>
+              <Ionicons name="school-outline" size={12} color={colors.textSecondary} />
+              <Text style={[styles.byNameText, { color: colors.textSecondary }]} numberOfLines={1}>
+                {item.byName}
+              </Text>
+            </View>
           ) : null}
         </View>
 
@@ -325,12 +259,12 @@ export default function HomeScreen({ navigation }: any) {
 
         <View style={styles.cardFooter}>
           <View style={styles.freeBadge}>
-            <Ionicons name="sparkles" size={12} color="#10B981" />
+            <Ionicons name="shield-checkmark" size={13} color="#10B981" />
             <Text style={styles.freeText}>Full Access</Text>
           </View>
-          <View style={styles.exploreBtn}>
-            <Text style={[styles.exploreText, { color: colors.accent }]}>Explore</Text>
-            <Ionicons name="chevron-forward" size={14} color={colors.accent} />
+          <View style={[styles.exploreBtn, { backgroundColor: colors.accentLight }]}>
+            <Text style={[styles.exploreText, { color: colors.accentText }]}>Explore Batch</Text>
+            <Ionicons name="chevron-forward" size={13} color={colors.accentText} />
           </View>
         </View>
       </View>
@@ -350,11 +284,111 @@ export default function HomeScreen({ navigation }: any) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+      {/* Fixed Top Header (Never remounts, Keyboard never closes) */}
+      <View style={styles.fixedHeader}>
+        <View style={styles.brandRow}>
+          <View>
+            <Text style={[styles.brandTitle, { color: colors.accent }]}>PW Pro by Shivansh</Text>
+            <Text style={[styles.brandSubtitle, { color: colors.textSecondary }]}>
+              Physics Wallah VIP Batches & Lectures
+            </Text>
+          </View>
+          <Pressable
+            style={[styles.themeBtn, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+            onPress={toggleTheme}
+          >
+            <Ionicons
+              name={isDark ? 'sunny-outline' : 'moon-outline'}
+              size={20}
+              color={isDark ? '#FACC15' : colors.text}
+            />
+          </Pressable>
+        </View>
+
+        {/* Live In-App Broadcast Announcement */}
+        {announcement && !dismissedBanner ? (
+          <View style={[styles.announcementBanner, { backgroundColor: colors.accentLight, borderColor: colors.accent }]}>
+            <View style={styles.announcementContent}>
+              <Ionicons name="megaphone" size={16} color={colors.accentText} />
+              <Text style={[styles.announcementText, { color: colors.accentText }]}>
+                {announcement}
+              </Text>
+            </View>
+            <Pressable onPress={() => setDismissedBanner(true)} hitSlop={10}>
+              <Ionicons name="close" size={16} color={colors.accentText} />
+            </Pressable>
+          </View>
+        ) : null}
+
+        {/* Search Bar */}
+        <View
+          style={[
+            styles.searchBox,
+            { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+          ]}
+        >
+          <Ionicons name="search-outline" size={18} color={colors.textSecondary} />
+          <TextInput
+            style={[styles.searchInput, { color: colors.text }]}
+            placeholder="Search batches (Yakeen, Arjuna, Lakshya...)"
+            placeholderTextColor={colors.textSecondary}
+            value={searchQuery}
+            onChangeText={handleSearch}
+            returnKeyType="search"
+            onSubmitEditing={Keyboard.dismiss}
+          />
+          {searchQuery.length > 0 && (
+            <Pressable onPress={() => handleSearch('')}>
+              <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
+            </Pressable>
+          )}
+        </View>
+
+        {/* Category Filter Chips */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categoriesList}
+          keyboardShouldPersistTaps="handled"
+        >
+          {categories.map((item) => {
+            const isSelected = selectedCategory === item;
+            return (
+              <Pressable
+                key={item}
+                style={[
+                  styles.categoryChip,
+                  {
+                    backgroundColor: isSelected ? colors.accent : colors.card,
+                    borderColor: isSelected ? colors.accent : colors.cardBorder,
+                  },
+                ]}
+                onPress={() => handleCategorySelect(item)}
+              >
+                <Ionicons
+                  name={getCategoryIcon(item)}
+                  size={13}
+                  color={isSelected ? '#000000' : colors.accent}
+                />
+                <Text
+                  style={[
+                    styles.categoryText,
+                    { color: isSelected ? '#000000' : colors.text },
+                  ]}
+                >
+                  {item}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
+
       <FlatList
         data={filteredBatches}
         keyExtractor={(item) => item._id}
         renderItem={renderBatchItem}
-        ListHeaderComponent={renderHeader}
+        ListHeaderComponent={renderListHeader}
         contentContainerStyle={styles.listContent}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
@@ -420,6 +454,14 @@ const styles = StyleSheet.create({
   headerContainer: {
     paddingTop: 12,
     paddingBottom: 8,
+  },
+  fixedHeader: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 4,
+  },
+  listHeaderWrap: {
+    paddingTop: 8,
   },
   brandRow: {
     flexDirection: 'row',
@@ -545,14 +587,17 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
   },
   categoryChip: {
-    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 13,
     paddingVertical: 7,
     borderRadius: 20,
     borderWidth: 1,
   },
   categoryText: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 12,
+    fontWeight: '700',
   },
   sectionTitleRow: {
     flexDirection: 'row',
@@ -575,10 +620,33 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginBottom: 14,
   },
+  batchImageWrap: {
+    position: 'relative',
+    width: '100%',
+    height: 155,
+  },
   batchImage: {
     width: '100%',
-    height: 150,
+    height: '100%',
     backgroundColor: '#1f2937',
+  },
+  imageOverlayBadge: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: '#FACC15',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  vipBadgeText: {
+    color: '#000000',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   batchInfo: {
     padding: 14,
@@ -598,6 +666,12 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
   },
+  educatorTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flex: 1,
+  },
   byNameText: {
     fontSize: 11,
     fontWeight: '500',
@@ -613,7 +687,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 8,
+    paddingTop: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: 'rgba(156, 163, 175, 0.2)',
   },
@@ -630,11 +704,14 @@ const styles = StyleSheet.create({
   exploreBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
   exploreText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   emptyContainer: {
     alignItems: 'center',

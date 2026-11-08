@@ -79,7 +79,17 @@ export default function BatchDetailScreen({ route, navigation }: any) {
     return true;
   });
 
-  const renderTopicItem = ({ item }: { item: Topic }) => (
+  const getSubjectIcon = (title: string): keyof typeof Ionicons.glyphMap => {
+    const t = title.toLowerCase();
+    if (t.includes('physic')) return 'speedometer-outline';
+    if (t.includes('chem')) return 'flask-outline';
+    if (t.includes('math')) return 'calculator-outline';
+    if (t.includes('bio') || t.includes('botan') || t.includes('zool')) return 'leaf-outline';
+    if (t.includes('eng')) return 'language-outline';
+    return 'book-outline';
+  };
+
+  const renderTopicItem = ({ item, index }: { item: Topic; index: number }) => (
     <Pressable
       style={[
         styles.topicCard,
@@ -98,12 +108,10 @@ export default function BatchDetailScreen({ route, navigation }: any) {
       }
     >
       <View style={styles.topicLeft}>
-        <View style={[styles.folderIconWrap, { backgroundColor: colors.accentLight }]}>
-          <Ionicons
-            name={(item.lecturesCount || 0) > 0 ? 'videocam-outline' : 'document-text-outline'}
-            size={20}
-            color={colors.accentText}
-          />
+        <View style={[styles.chIndexBox, { backgroundColor: colors.background, borderColor: colors.cardBorder }]}>
+          <Text style={[styles.chIndexText, { color: colors.accent }]}>
+            {String(index + 1).padStart(2, '0')}
+          </Text>
         </View>
         <View style={styles.topicTextWrap}>
           <Text style={[styles.topicTitle, { color: colors.text }]} numberOfLines={2}>
@@ -162,6 +170,147 @@ export default function BatchDetailScreen({ route, navigation }: any) {
         </Text>
       </View>
 
+      {/* Pinned Subject Tabs - Instant 1-tap switching */}
+      {subjects.length > 0 && (
+        <View style={[styles.pinnedSubjectsWrap, { backgroundColor: colors.card, borderBottomColor: colors.cardBorder }]}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.pinnedSubjectsRow}
+          >
+            {subjects.map((sub) => {
+              const isSelected = selectedSubject?._id === sub._id;
+              return (
+                <Pressable
+                  key={sub._id}
+                  style={[
+                    styles.subjectChip,
+                    {
+                      backgroundColor: isSelected ? colors.accent : colors.background,
+                      borderColor: isSelected ? colors.accent : colors.cardBorder,
+                    },
+                  ]}
+                  onPress={() => onSelectSubject(sub)}
+                >
+                  <Ionicons
+                    name={getSubjectIcon(sub.title)}
+                    size={14}
+                    color={isSelected ? '#000000' : colors.accent}
+                  />
+                  <Text
+                    style={[
+                      styles.subjectChipText,
+                      { color: isSelected ? '#000000' : colors.text },
+                    ]}
+                  >
+                    {sub.title}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* In-Batch Search & Filter Row - Fixed outside FlatList so typing never dismisses the keyboard */}
+      <View style={[styles.fixedSearchContainer, { backgroundColor: colors.background }]}>
+        <View
+          style={[
+            styles.searchBox,
+            { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+          ]}
+        >
+          <Ionicons name="search-outline" size={16} color={colors.textSecondary} />
+          <TextInput
+            style={[styles.searchInput, { color: colors.text }]}
+            placeholder={`Search ${selectedSubject?.title || 'chapters'}...`}
+            placeholderTextColor={colors.textSecondary}
+            value={searchTopic}
+            onChangeText={setSearchTopic}
+            returnKeyType="search"
+            onSubmitEditing={Keyboard.dismiss}
+          />
+          {searchTopic.length > 0 && (
+            <Pressable onPress={() => setSearchTopic('')}>
+              <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
+            </Pressable>
+          )}
+        </View>
+
+        {/* Filter Pills */}
+        <View style={styles.filterRow}>
+          <Pressable
+            style={[
+              styles.filterPill,
+              { borderColor: colors.cardBorder, backgroundColor: colors.card },
+              filterMode === 'all' && { backgroundColor: colors.accent, borderColor: colors.accent },
+            ]}
+            onPress={() => setFilterMode('all')}
+          >
+            <Ionicons
+              name="apps"
+              size={13}
+              color={filterMode === 'all' ? '#000' : colors.textSecondary}
+            />
+            <Text
+              style={[
+                styles.filterPillText,
+                { color: filterMode === 'all' ? '#000' : colors.textSecondary },
+              ]}
+            >
+              All ({topics.length})
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={[
+              styles.filterPill,
+              { borderColor: colors.cardBorder, backgroundColor: colors.card },
+              filterMode === 'videos' && { backgroundColor: colors.accent, borderColor: colors.accent },
+            ]}
+            onPress={() => setFilterMode('videos')}
+          >
+            <Ionicons
+              name="videocam"
+              size={13}
+              color={filterMode === 'videos' ? '#000' : colors.textSecondary}
+            />
+            <Text
+              style={[
+                styles.filterPillText,
+                { color: filterMode === 'videos' ? '#000' : colors.textSecondary },
+              ]}
+            >
+              Videos
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={[
+              styles.filterPill,
+              { borderColor: colors.cardBorder, backgroundColor: colors.card },
+              filterMode === 'notes' && { backgroundColor: colors.accent, borderColor: colors.accent },
+            ]}
+            onPress={() => setFilterMode('notes')}
+          >
+            <Ionicons
+              name="document-text"
+              size={13}
+              color={filterMode === 'notes' ? '#000' : colors.textSecondary}
+            />
+            <Text
+              style={[
+                styles.filterPillText,
+                { color: filterMode === 'notes' ? '#000' : colors.textSecondary },
+              ]}
+            >
+              PDF Notes
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+
       {loadingBatch ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={colors.accent} />
@@ -178,175 +327,40 @@ export default function BatchDetailScreen({ route, navigation }: any) {
           contentContainerStyle={styles.contentList}
           ListHeaderComponent={
             <View>
-              {/* Batch Banner */}
-              {batch?.image ? (
-                <Image
-                  source={{ uri: batch.image }}
-                  style={styles.batchBanner}
-                  resizeMode="cover"
-                />
-              ) : null}
-
-              <View style={styles.bannerInfo}>
-                <Text style={[styles.batchDetailTitle, { color: colors.text }]}>
-                  {batch?.name}
-                </Text>
-                <View style={styles.metaRow}>
-                  <View style={[styles.badge, { backgroundColor: colors.accentLight }]}>
-                    <Text style={[styles.badgeText, { color: colors.accentText }]}>
-                      {batch?.language || 'Hinglish'}
+              {/* Compact Batch Overview Card */}
+              <View style={[styles.batchSummaryCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+                {batch?.image ? (
+                  <Image
+                    source={{ uri: batch.image }}
+                    style={styles.summaryThumb}
+                    resizeMode="cover"
+                  />
+                ) : null}
+                <View style={styles.summaryInfo}>
+                  <Text style={[styles.batchSummaryName, { color: colors.text }]} numberOfLines={1}>
+                    {batch?.name}
+                  </Text>
+                  <View style={styles.summaryBadgesRow}>
+                    <View style={[styles.badge, { backgroundColor: colors.accentLight }]}>
+                      <Text style={[styles.badgeText, { color: colors.accentText }]}>
+                        {batch?.language || 'Hinglish'}
+                      </Text>
+                    </View>
+                    <Text style={[styles.metaText, { color: colors.textSecondary }]} numberOfLines={1}>
+                      by {batch?.byName || 'Physics Wallah'}
                     </Text>
                   </View>
-                  <Text style={[styles.metaText, { color: colors.textSecondary }]}>
-                    by {batch?.byName || 'Physics Wallah'}
-                  </Text>
                 </View>
               </View>
 
-              {/* Subjects Horizontal Scroll */}
-              <View style={styles.subjectsSection}>
-                <Text style={[styles.sectionHeading, { color: colors.text }]}>Subjects</Text>
-                {subjects.length === 0 ? (
-                  <Text style={[styles.noSubjectsText, { color: colors.textSecondary }]}>
-                    No subjects available for this batch yet.
-                  </Text>
-                ) : (
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
-                    contentContainerStyle={styles.subjectsRow}
-                  >
-                    {subjects.map((sub) => {
-                      const isSelected = selectedSubject?._id === sub._id;
-                      return (
-                        <Pressable
-                          key={sub._id}
-                          style={[
-                            styles.subjectChip,
-                            {
-                              backgroundColor: isSelected ? colors.accent : colors.card,
-                              borderColor: isSelected ? colors.accent : colors.cardBorder,
-                            },
-                          ]}
-                          onPress={() => onSelectSubject(sub)}
-                        >
-                          <Ionicons
-                            name="book-outline"
-                            size={14}
-                            color={isSelected ? '#000' : colors.accent}
-                          />
-                          <Text
-                            style={[
-                              styles.subjectChipText,
-                              { color: isSelected ? '#000000' : colors.text },
-                            ]}
-                          >
-                            {sub.title}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </ScrollView>
-                )}
-              </View>
-
-              {/* In-Batch Search & Filter Row */}
-              <View style={styles.searchSection}>
-                <View
-                  style={[
-                    styles.searchBox,
-                    { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
-                  ]}
-                >
-                  <Ionicons name="search-outline" size={16} color={colors.textSecondary} />
-                  <TextInput
-                    style={[styles.searchInput, { color: colors.text }]}
-                    placeholder="Search chapters in this subject..."
-                    placeholderTextColor={colors.textSecondary}
-                    value={searchTopic}
-                    onChangeText={setSearchTopic}
-                    returnKeyType="search"
-                    onSubmitEditing={Keyboard.dismiss}
-                  />
-                  {searchTopic.length > 0 && (
-                    <Pressable onPress={() => setSearchTopic('')}>
-                      <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
-                    </Pressable>
-                  )}
-                </View>
-
-                {/* Filter Pills */}
-                <View style={styles.filterRow}>
-                  <Pressable
-                    style={[
-                      styles.filterPill,
-                      { borderColor: colors.cardBorder, backgroundColor: colors.card },
-                      filterMode === 'all' && { backgroundColor: colors.accent, borderColor: colors.accent },
-                    ]}
-                    onPress={() => setFilterMode('all')}
-                  >
-                    <Ionicons
-                      name="apps"
-                      size={13}
-                      color={filterMode === 'all' ? '#000' : colors.textSecondary}
-                    />
-                    <Text
-                      style={[
-                        styles.filterPillText,
-                        { color: filterMode === 'all' ? '#000' : colors.textSecondary },
-                      ]}
-                    >
-                      All ({topics.length})
-                    </Text>
-                  </Pressable>
-
-                  <Pressable
-                    style={[
-                      styles.filterPill,
-                      { borderColor: colors.cardBorder, backgroundColor: colors.card },
-                      filterMode === 'videos' && { backgroundColor: colors.accent, borderColor: colors.accent },
-                    ]}
-                    onPress={() => setFilterMode('videos')}
-                  >
-                    <Ionicons
-                      name="videocam"
-                      size={13}
-                      color={filterMode === 'videos' ? '#000' : colors.textSecondary}
-                    />
-                    <Text
-                      style={[
-                        styles.filterPillText,
-                        { color: filterMode === 'videos' ? '#000' : colors.textSecondary },
-                      ]}
-                    >
-                      Videos
-                    </Text>
-                  </Pressable>
-
-                  <Pressable
-                    style={[
-                      styles.filterPill,
-                      { borderColor: colors.cardBorder, backgroundColor: colors.card },
-                      filterMode === 'notes' && { backgroundColor: colors.accent, borderColor: colors.accent },
-                    ]}
-                    onPress={() => setFilterMode('notes')}
-                  >
-                    <Ionicons
-                      name="document-text"
-                      size={13}
-                      color={filterMode === 'notes' ? '#000' : colors.textSecondary}
-                    />
-                    <Text
-                      style={[
-                        styles.filterPillText,
-                        { color: filterMode === 'notes' ? '#000' : colors.textSecondary },
-                      ]}
-                    >
-                      PDF Notes
-                    </Text>
-                  </Pressable>
-                </View>
+              <View style={styles.topicsHeaderRow}>
+                <Ionicons name="layers-outline" size={16} color={colors.accent} />
+                <Text style={[styles.sectionHeading, { color: colors.text }]}>
+                  {selectedSubject ? `${selectedSubject.title} Chapters` : 'Chapters'}
+                </Text>
+                <Text style={[styles.chapterCountBadge, { color: colors.textSecondary }]}>
+                  ({filteredTopics.length})
+                </Text>
               </View>
 
               {loadingTopics && (
@@ -410,72 +424,32 @@ const styles = StyleSheet.create({
   contentList: {
     paddingBottom: 32,
   },
-  batchBanner: {
-    width: '100%',
-    height: 180,
+  pinnedSubjectsWrap: {
+    borderBottomWidth: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
   },
-  bannerInfo: {
-    padding: 16,
-  },
-  batchDetailTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    lineHeight: 24,
-  },
-  metaRow: {
-    flexDirection: 'row',
+  pinnedSubjectsRow: {
+    gap: 8,
     alignItems: 'center',
-    marginTop: 8,
-    gap: 8,
-  },
-  badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  badgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  metaText: {
-    fontSize: 12,
-  },
-  subjectsSection: {
-    paddingHorizontal: 16,
-    marginBottom: 16,
-  },
-  sectionHeading: {
-    fontSize: 15,
-    fontWeight: '700',
-    marginBottom: 10,
-  },
-  noSubjectsText: {
-    fontSize: 13,
-  },
-  subjectsRow: {
-    gap: 8,
-    paddingVertical: 2,
   },
   subjectChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 18,
+    paddingHorizontal: 13,
+    paddingVertical: 7,
+    borderRadius: 20,
     borderWidth: 1,
     gap: 6,
   },
   subjectChipText: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 12,
+    fontWeight: '700',
   },
-  topicsHeaderRow: {
+  fixedSearchContainer: {
     paddingHorizontal: 16,
-    marginBottom: 8,
-  },
-  searchSection: {
-    paddingHorizontal: 16,
-    marginBottom: 12,
+    paddingTop: 10,
+    paddingBottom: 10,
   },
   searchBox: {
     flexDirection: 'row',
@@ -509,6 +483,64 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
+  batchSummaryCard: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  summaryThumb: {
+    width: 60,
+    height: 46,
+    borderRadius: 8,
+    backgroundColor: '#1f2937',
+  },
+  summaryInfo: {
+    flex: 1,
+  },
+  batchSummaryName: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  summaryBadgesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  badge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  badgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  metaText: {
+    fontSize: 11,
+    flex: 1,
+  },
+  topicsHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    marginBottom: 10,
+    gap: 6,
+  },
+  sectionHeading: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  chapterCountBadge: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
   topicsLoader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -522,8 +554,8 @@ const styles = StyleSheet.create({
   topicCard: {
     marginHorizontal: 16,
     marginBottom: 10,
-    padding: 14,
-    borderRadius: 14,
+    padding: 12,
+    borderRadius: 12,
     borderWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',
@@ -535,12 +567,17 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 12,
   },
-  folderIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+  chIndexBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  chIndexText: {
+    fontSize: 13,
+    fontWeight: '800',
   },
   topicTextWrap: {
     flex: 1,
