@@ -207,10 +207,10 @@ export async function getTopics(batchId: string, subjectId: string): Promise<Top
   try {
     let res: any;
     try {
-      res = await fetchFromProxy(`/v1/batches/${batchId}/subject/${subjectId}/topics?page=1&limit=50`);
+      res = await fetchFromProxy(`/v1/batches/${batchId}/subject/${subjectId}/topics?page=1&limit=60`);
     } catch {
       res = await fetchFromProxy(
-        `/batch-service/v1/batch-tags/${batchId}/subject/${subjectId}/topics?page=1&limit=50`
+        `/batch-service/v1/batch-tags/${batchId}/subject/${subjectId}/topics?page=1&limit=60`
       );
     }
     const rawList = Array.isArray(res) ? res : res?.data || [];
@@ -219,9 +219,9 @@ export async function getTopics(batchId: string, subjectId: string): Promise<Top
       id: t._id || t.id,
       name: t.name || t.title || 'Topic',
       slug: t.slug || t._id,
-      lecturesCount: t.lecturesCount || t.videosCount || 0,
-      notesCount: t.notesCount || 0,
-      dppCount: t.dppCount || 0,
+      lecturesCount: t.videos ?? t.lectureVideos ?? t.lecturesCount ?? t.videosCount ?? 0,
+      notesCount: t.notes ?? t.notesCount ?? 0,
+      dppCount: t.exercises ?? t.dppCount ?? 0,
     }));
   } catch (err) {
     console.error('getTopics error:', err);
@@ -233,22 +233,26 @@ export async function getTopics(batchId: string, subjectId: string): Promise<Top
 export async function getTopicLectures(
   batchId: string,
   subjectId: string,
-  topicId: string
+  topicId: string,
+  topicSlug?: string
 ): Promise<Lecture[]> {
   try {
     let items: any[] = [];
+    const targetTag = topicSlug || topicId;
 
-    // Strategy 1: Batch-service schedule contents by tagId
+    // Strategy 1: v2 batches contents with tag filter (matches website and returns full lectures)
     try {
       const r1: any = await fetchFromProxy(
-        `/batch-service/v3/batch-subject-schedules/${batchId}/subject/${subjectId}/contents?skip=0&limit=50&contentType=videos&tagId=${topicId}`
+        `/v2/batches/${batchId}/subject/${subjectId}/contents?page=1&contentType=videos&tag=${encodeURIComponent(
+          targetTag
+        )}`
       );
       if (Array.isArray(r1) && r1.length > 0) items = r1;
       else if (Array.isArray(r1?.data) && r1.data.length > 0) items = r1.data;
     } catch {}
 
-    // Strategy 2: v2 batches contents with tag filter
-    if (items.length === 0) {
+    // Strategy 2: If tag had no results, try with topicId
+    if (items.length === 0 && topicSlug && topicSlug !== topicId) {
       try {
         const r2: any = await fetchFromProxy(
           `/v2/batches/${batchId}/subject/${subjectId}/contents?page=1&contentType=videos&tag=${encodeURIComponent(
@@ -260,18 +264,32 @@ export async function getTopicLectures(
       } catch {}
     }
 
-    // Strategy 3: v2 subject video contents directly
+    // Strategy 3: Batch-service schedule contents
     if (items.length === 0) {
       try {
         const r3: any = await fetchFromProxy(
+          `/batch-service/v3/batch-subject-schedules/${batchId}/subject/${subjectId}/contents?skip=0&limit=50&contentType=videos&tagId=${topicId}`
+        );
+        if (Array.isArray(r3) && r3.length > 0) items = r3;
+        else if (Array.isArray(r3?.data) && r3.data.length > 0) items = r3.data;
+      } catch {}
+    }
+
+    // Strategy 4: Fallback to all subject videos filtered by tag
+    if (items.length === 0) {
+      try {
+        const r4: any = await fetchFromProxy(
           `/v2/batches/${batchId}/subject/${subjectId}/contents?page=1&contentType=videos`
         );
-        const candidate = Array.isArray(r3) ? r3 : r3?.data || [];
+        const candidate = Array.isArray(r4) ? r4 : r4?.data || [];
         if (candidate.length > 0) {
-          // If topic tags match, filter by tag, else return all subject videos
           const filtered = candidate.filter((item: any) =>
             Array.isArray(item.tags)
-              ? item.tags.some((tg: any) => (tg._id || tg.id || tg) === topicId)
+              ? item.tags.some(
+                  (tg: any) =>
+                    (tg._id || tg.id || tg) === topicId ||
+                    (tg.slug && tg.slug === targetTag)
+                )
               : true
           );
           items = filtered.length > 0 ? filtered : candidate;
@@ -306,6 +324,66 @@ export async function getTopicLectures(
     });
   } catch (err) {
     console.error('getTopicLectures error:', err);
+    return [];
+  }
+}
+
+// 4b. Get PDF Notes inside a Topic (for chapters or PDF-only folders)
+export async function getTopicNotes(
+  batchId: string,
+  subjectId: string,
+  topicId: string,
+  topicSlug?: string
+): Promise<Attachment[]> {
+  try {
+    const targetTag = topicSlug || topicId;
+    let res: any;
+    try {
+      res = await fetchFromProxy(
+        `/v2/batches/${batchId}/subject/${subjectId}/contents?page=1&contentType=notes&tag=${encodeURIComponent(
+          targetTag
+        )}`
+      );
+    } catch {
+      res = await fetchFromProxy(
+        `/v2/batches/${batchId}/subject/${subjectId}/contents?page=1&contentType=notes&tag=${encodeURIComponent(
+          topicId
+        )}`
+      );
+    }
+
+    const items = Array.isArray(res) ? res : res?.data || [];
+    const notes: Attachment[] = [];
+
+    items.forEach((item: any) => {
+      if (Array.isArray(item.homeworkIds)) {
+        item.homeworkIds.forEach((hw: any) => {
+          if (Array.isArray(hw.attachmentIds)) {
+            hw.attachmentIds.forEach((att: any) => {
+              const fileKey = (att.key || att.name || '').toString().replace(/^\/+/, '');
+              const dlUrl = att.baseUrl
+                ? `${att.baseUrl.replace(/\/+$/, '')}/${fileKey}`
+                : `https://d2bps9p1kiy4ka.cloudfront.net/${fileKey}`;
+
+              notes.push({
+                _id: att._id || hw._id,
+                id: att._id || hw._id,
+                name: att.name || hw.topic || 'Lecture Note.pdf',
+                title: hw.topic || att.name || 'Lecture Notes',
+                attachmentUrl: dlUrl,
+                key: att.key,
+                baseUrl: att.baseUrl,
+                type: 'NOTES',
+              });
+            });
+          }
+        });
+      }
+    });
+
+    return notes;
+  } catch (err) {
+    console.error('getTopicNotes error:', err);
     return [];
   }
 }

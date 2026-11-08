@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   ScrollView,
+  Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -145,6 +146,8 @@ export default function HomeScreen({ navigation }: any) {
           placeholderTextColor={colors.textSecondary}
           value={searchQuery}
           onChangeText={handleSearch}
+          returnKeyType="search"
+          onSubmitEditing={Keyboard.dismiss}
         />
         {searchQuery.length > 0 && (
           <Pressable onPress={() => handleSearch('')}>
@@ -323,6 +326,8 @@ export default function HomeScreen({ navigation }: any) {
         renderItem={renderBatchItem}
         ListHeaderComponent={renderHeader}
         contentContainerStyle={styles.listContent}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}
         initialNumToRender={12}
         maxToRenderPerBatch={12}

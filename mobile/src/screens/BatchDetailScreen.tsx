@@ -8,6 +8,8 @@ import {
   Image,
   ActivityIndicator,
   ScrollView,
+  TextInput,
+  Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,6 +26,8 @@ export default function BatchDetailScreen({ route, navigation }: any) {
   const [subjects, setSubjects] = useState<Subject[]>(initialBatch?.subjects || []);
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
   const [topics, setTopics] = useState<Topic[]>([]);
+  const [searchTopic, setSearchTopic] = useState<string>('');
+  const [filterMode, setFilterMode] = useState<'all' | 'videos' | 'notes'>('all');
   const [loadingBatch, setLoadingBatch] = useState(!initialBatch?.subjects);
   const [loadingTopics, setLoadingTopics] = useState(false);
 
@@ -66,6 +70,15 @@ export default function BatchDetailScreen({ route, navigation }: any) {
     loadTopics(batchId, sub._id);
   };
 
+  const filteredTopics = topics.filter((t) => {
+    if (filterMode === 'videos' && (t.lecturesCount || 0) === 0) return false;
+    if (filterMode === 'notes' && (t.notesCount || 0) === 0) return false;
+    if (searchTopic.trim().length > 0) {
+      return t.name.toLowerCase().includes(searchTopic.toLowerCase());
+    }
+    return true;
+  });
+
   const renderTopicItem = ({ item }: { item: Topic }) => (
     <Pressable
       style={[
@@ -80,24 +93,36 @@ export default function BatchDetailScreen({ route, navigation }: any) {
           subjectName: selectedSubject?.title,
           topicId: item._id,
           topicName: item.name,
+          topicSlug: item.slug,
         })
       }
     >
       <View style={styles.topicLeft}>
         <View style={[styles.folderIconWrap, { backgroundColor: colors.accentLight }]}>
-          <Ionicons name="folder-outline" size={20} color={colors.accentText} />
+          <Ionicons
+            name={(item.lecturesCount || 0) > 0 ? 'videocam-outline' : 'document-text-outline'}
+            size={20}
+            color={colors.accentText}
+          />
         </View>
         <View style={styles.topicTextWrap}>
           <Text style={[styles.topicTitle, { color: colors.text }]} numberOfLines={2}>
             {item.name}
           </Text>
           <View style={styles.statsRow}>
-            <Text style={[styles.statBadge, { color: colors.textSecondary }]}>
-              📹 {item.lecturesCount || 0} Lectures
-            </Text>
-            {item.notesCount ? (
+            {(item.lecturesCount || 0) > 0 ? (
+              <Text style={[styles.statBadge, { color: colors.accent }]}>
+                📹 {item.lecturesCount} Lectures
+              </Text>
+            ) : null}
+            {(item.notesCount || 0) > 0 ? (
               <Text style={[styles.statBadge, { color: colors.textSecondary }]}>
-                📄 {item.notesCount} Notes
+                📄 {item.notesCount} PDF Notes
+              </Text>
+            ) : null}
+            {(item.lecturesCount || 0) === 0 && (item.notesCount || 0) === 0 ? (
+              <Text style={[styles.statBadge, { color: colors.textSecondary }]}>
+                📚 Chapter Materials
               </Text>
             ) : null}
           </View>
@@ -137,8 +162,10 @@ export default function BatchDetailScreen({ route, navigation }: any) {
         </View>
       ) : (
         <FlatList
-          data={topics}
+          data={filteredTopics}
           keyExtractor={(item) => item._id}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           contentContainerStyle={styles.contentList}
           ListHeaderComponent={
             <View>
@@ -178,6 +205,7 @@ export default function BatchDetailScreen({ route, navigation }: any) {
                   <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
                     contentContainerStyle={styles.subjectsRow}
                   >
                     {subjects.map((sub) => {
@@ -214,12 +242,84 @@ export default function BatchDetailScreen({ route, navigation }: any) {
                 )}
               </View>
 
-              {/* Topics Header */}
-              <View style={styles.topicsHeaderRow}>
-                <Text style={[styles.sectionHeading, { color: colors.text }]}>
-                  Topics & Chapters ({topics.length})
-                </Text>
+              {/* In-Batch Search & Filter Row */}
+              <View style={styles.searchSection}>
+                <View
+                  style={[
+                    styles.searchBox,
+                    { backgroundColor: colors.inputBg, borderColor: colors.cardBorder },
+                  ]}
+                >
+                  <Ionicons name="search-outline" size={16} color={colors.textSecondary} />
+                  <TextInput
+                    style={[styles.searchInput, { color: colors.text }]}
+                    placeholder="Search chapters in this subject..."
+                    placeholderTextColor={colors.textSecondary}
+                    value={searchTopic}
+                    onChangeText={setSearchTopic}
+                    returnKeyType="search"
+                    onSubmitEditing={Keyboard.dismiss}
+                  />
+                  {searchTopic.length > 0 && (
+                    <Pressable onPress={() => setSearchTopic('')}>
+                      <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
+                    </Pressable>
+                  )}
+                </View>
+
+                {/* Filter Pills */}
+                <View style={styles.filterRow}>
+                  <Pressable
+                    style={[
+                      styles.filterPill,
+                      filterMode === 'all' && { backgroundColor: colors.accentLight, borderColor: colors.accent },
+                    ]}
+                    onPress={() => setFilterMode('all')}
+                  >
+                    <Text
+                      style={[
+                        styles.filterPillText,
+                        { color: filterMode === 'all' ? colors.accentText : colors.textSecondary },
+                      ]}
+                    >
+                      All ({topics.length})
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={[
+                      styles.filterPill,
+                      filterMode === 'videos' && { backgroundColor: colors.accentLight, borderColor: colors.accent },
+                    ]}
+                    onPress={() => setFilterMode('videos')}
+                  >
+                    <Text
+                      style={[
+                        styles.filterPillText,
+                        { color: filterMode === 'videos' ? colors.accentText : colors.textSecondary },
+                      ]}
+                    >
+                      📹 Video Chapters
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={[
+                      styles.filterPill,
+                      filterMode === 'notes' && { backgroundColor: colors.accentLight, borderColor: colors.accent },
+                    ]}
+                    onPress={() => setFilterMode('notes')}
+                  >
+                    <Text
+                      style={[
+                        styles.filterPillText,
+                        { color: filterMode === 'notes' ? colors.accentText : colors.textSecondary },
+                      ]}
+                    >
+                      📄 PDF Notes
+                    </Text>
+                  </Pressable>
+                </View>
               </View>
+
               {loadingTopics && (
                 <View style={styles.topicsLoader}>
                   <ActivityIndicator size="small" color={colors.accent} />
@@ -236,7 +336,9 @@ export default function BatchDetailScreen({ route, navigation }: any) {
               <View style={styles.emptyWrap}>
                 <Ionicons name="folder-open-outline" size={40} color={colors.textSecondary} />
                 <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                  No topics uploaded for this subject yet.
+                  {searchTopic.trim()
+                    ? `No chapters matching "${searchTopic}"`
+                    : 'No chapters found for this subject.'}
                 </Text>
               </View>
             ) : undefined
@@ -341,6 +443,40 @@ const styles = StyleSheet.create({
   topicsHeaderRow: {
     paddingHorizontal: 16,
     marginBottom: 8,
+  },
+  searchSection: {
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    height: 42,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 13,
+    height: '100%',
+  },
+  filterRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 10,
+  },
+  filterPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  filterPillText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   topicsLoader: {
     flexDirection: 'row',

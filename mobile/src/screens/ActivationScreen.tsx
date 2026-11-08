@@ -10,6 +10,9 @@ import {
   Linking,
   Modal,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -53,13 +56,19 @@ export default function ActivationScreen() {
   };
 
   return (
-    <ScrollView
-      style={[
-        styles.container,
-        { backgroundColor: colors.background, paddingTop: insets.top },
-      ]}
-      contentContainerStyle={styles.content}
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={{ flex: 1, backgroundColor: colors.background }}
     >
+      <ScrollView
+        style={[
+          styles.container,
+          { backgroundColor: colors.background, paddingTop: insets.top },
+        ]}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
       {/* Top Config Gear */}
       <View style={styles.topRow}>
         <Pressable
@@ -151,6 +160,8 @@ export default function ActivationScreen() {
             autoCorrect={false}
             value={inputKey}
             onChangeText={(t) => setInputKey(t.toUpperCase())}
+            returnKeyType="done"
+            onSubmitEditing={handleActivate}
           />
           {inputKey.length > 0 && (
             <Pressable onPress={() => setInputKey('')}>
@@ -235,6 +246,7 @@ export default function ActivationScreen() {
         </View>
       </Modal>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
