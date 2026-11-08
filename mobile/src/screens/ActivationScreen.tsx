@@ -43,7 +43,7 @@ export default function ActivationScreen() {
     setSubmitting(false);
 
     if (res.success) {
-      Alert.alert('Activated! 🎉', res.message);
+      Alert.alert('Activated Successfully', res.message);
     } else {
       Alert.alert('Activation Failed', res.message);
     }

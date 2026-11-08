@@ -111,19 +111,28 @@ export default function BatchDetailScreen({ route, navigation }: any) {
           </Text>
           <View style={styles.statsRow}>
             {(item.lecturesCount || 0) > 0 ? (
-              <Text style={[styles.statBadge, { color: colors.accent }]}>
-                📹 {item.lecturesCount} Lectures
-              </Text>
+              <View style={[styles.badgeItem, { backgroundColor: colors.accentLight }]}>
+                <Ionicons name="play-circle" size={12} color={colors.accentText} />
+                <Text style={[styles.statBadgeText, { color: colors.accentText }]}>
+                  {item.lecturesCount} {item.lecturesCount === 1 ? 'Lecture' : 'Lectures'}
+                </Text>
+              </View>
             ) : null}
             {(item.notesCount || 0) > 0 ? (
-              <Text style={[styles.statBadge, { color: colors.textSecondary }]}>
-                📄 {item.notesCount} PDF Notes
-              </Text>
+              <View style={[styles.badgeItem, { backgroundColor: colors.inputBg }]}>
+                <Ionicons name="document-text" size={12} color={colors.textSecondary} />
+                <Text style={[styles.statBadgeText, { color: colors.textSecondary }]}>
+                  {item.notesCount} {item.notesCount === 1 ? 'PDF Note' : 'PDF Notes'}
+                </Text>
+              </View>
             ) : null}
             {(item.lecturesCount || 0) === 0 && (item.notesCount || 0) === 0 ? (
-              <Text style={[styles.statBadge, { color: colors.textSecondary }]}>
-                📚 Chapter Materials
-              </Text>
+              <View style={[styles.badgeItem, { backgroundColor: colors.inputBg }]}>
+                <Ionicons name="layers-outline" size={12} color={colors.textSecondary} />
+                <Text style={[styles.statBadgeText, { color: colors.textSecondary }]}>
+                  Chapter Materials
+                </Text>
+              </View>
             ) : null}
           </View>
         </View>
@@ -272,49 +281,69 @@ export default function BatchDetailScreen({ route, navigation }: any) {
                   <Pressable
                     style={[
                       styles.filterPill,
-                      filterMode === 'all' && { backgroundColor: colors.accentLight, borderColor: colors.accent },
+                      { borderColor: colors.cardBorder, backgroundColor: colors.card },
+                      filterMode === 'all' && { backgroundColor: colors.accent, borderColor: colors.accent },
                     ]}
                     onPress={() => setFilterMode('all')}
                   >
+                    <Ionicons
+                      name="apps"
+                      size={13}
+                      color={filterMode === 'all' ? '#000' : colors.textSecondary}
+                    />
                     <Text
                       style={[
                         styles.filterPillText,
-                        { color: filterMode === 'all' ? colors.accentText : colors.textSecondary },
+                        { color: filterMode === 'all' ? '#000' : colors.textSecondary },
                       ]}
                     >
                       All ({topics.length})
                     </Text>
                   </Pressable>
+
                   <Pressable
                     style={[
                       styles.filterPill,
-                      filterMode === 'videos' && { backgroundColor: colors.accentLight, borderColor: colors.accent },
+                      { borderColor: colors.cardBorder, backgroundColor: colors.card },
+                      filterMode === 'videos' && { backgroundColor: colors.accent, borderColor: colors.accent },
                     ]}
                     onPress={() => setFilterMode('videos')}
                   >
+                    <Ionicons
+                      name="videocam"
+                      size={13}
+                      color={filterMode === 'videos' ? '#000' : colors.textSecondary}
+                    />
                     <Text
                       style={[
                         styles.filterPillText,
-                        { color: filterMode === 'videos' ? colors.accentText : colors.textSecondary },
+                        { color: filterMode === 'videos' ? '#000' : colors.textSecondary },
                       ]}
                     >
-                      📹 Video Chapters
+                      Videos
                     </Text>
                   </Pressable>
+
                   <Pressable
                     style={[
                       styles.filterPill,
-                      filterMode === 'notes' && { backgroundColor: colors.accentLight, borderColor: colors.accent },
+                      { borderColor: colors.cardBorder, backgroundColor: colors.card },
+                      filterMode === 'notes' && { backgroundColor: colors.accent, borderColor: colors.accent },
                     ]}
                     onPress={() => setFilterMode('notes')}
                   >
+                    <Ionicons
+                      name="document-text"
+                      size={13}
+                      color={filterMode === 'notes' ? '#000' : colors.textSecondary}
+                    />
                     <Text
                       style={[
                         styles.filterPillText,
-                        { color: filterMode === 'notes' ? colors.accentText : colors.textSecondary },
+                        { color: filterMode === 'notes' ? '#000' : colors.textSecondary },
                       ]}
                     >
-                      📄 PDF Notes
+                      PDF Notes
                     </Text>
                   </Pressable>
                 </View>
@@ -468,15 +497,17 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   filterPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'transparent',
   },
   filterPillText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   topicsLoader: {
     flexDirection: 'row',
@@ -491,8 +522,8 @@ const styles = StyleSheet.create({
   topicCard: {
     marginHorizontal: 16,
     marginBottom: 10,
-    padding: 12,
-    borderRadius: 12,
+    padding: 14,
+    borderRadius: 14,
     borderWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',
@@ -505,9 +536,9 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   folderIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -517,16 +548,26 @@ const styles = StyleSheet.create({
   topicTitle: {
     fontSize: 14,
     fontWeight: '700',
-    lineHeight: 18,
+    lineHeight: 19,
   },
   statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginTop: 4,
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 6,
   },
-  statBadge: {
+  badgeItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  statBadgeText: {
     fontSize: 11,
+    fontWeight: '600',
   },
   emptyWrap: {
     alignItems: 'center',

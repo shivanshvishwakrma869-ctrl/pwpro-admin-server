@@ -151,13 +151,19 @@ export default function TopicScreen({ route, navigation }: any) {
               {item.title}
             </Text>
             <View style={styles.lectureMetaRow}>
-              <Text style={[styles.lectureTeacher, { color: colors.textSecondary }]}>
-                👨‍🏫 {item.teacher || 'Physics Wallah'}
-              </Text>
-              {item.duration ? (
-                <Text style={[styles.lectureDuration, { color: colors.textSecondary }]}>
-                  ⏱️ {item.duration}
+              <View style={styles.metaBadge}>
+                <Ionicons name="person-outline" size={12} color={colors.textSecondary} />
+                <Text style={[styles.lectureTeacher, { color: colors.textSecondary }]}>
+                  {item.teacher || 'Physics Wallah'}
                 </Text>
+              </View>
+              {item.duration ? (
+                <View style={styles.metaBadge}>
+                  <Ionicons name="time-outline" size={12} color={colors.textSecondary} />
+                  <Text style={[styles.lectureDuration, { color: colors.textSecondary }]}>
+                    {item.duration}
+                  </Text>
+                </View>
               ) : null}
             </View>
           </View>
@@ -232,9 +238,12 @@ export default function TopicScreen({ route, navigation }: any) {
             <Text style={[styles.lectureTitle, { color: colors.text }]} numberOfLines={2}>
               {item.name || item.title || 'PDF Document'}
             </Text>
-            <Text style={[styles.lectureTeacher, { color: colors.textSecondary, marginTop: 4 }]}>
-              📄 Official PW Document
-            </Text>
+            <View style={[styles.metaBadge, { marginTop: 4 }]}>
+              <Ionicons name="shield-checkmark-outline" size={12} color={colors.accent} />
+              <Text style={[styles.lectureTeacher, { color: colors.textSecondary }]}>
+                Verified Study Material
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -524,11 +533,18 @@ const styles = StyleSheet.create({
     gap: 12,
     marginTop: 6,
   },
+  metaBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   lectureTeacher: {
     fontSize: 11,
+    fontWeight: '500',
   },
   lectureDuration: {
     fontSize: 11,
+    fontWeight: '500',
   },
   actionRow: {
     flexDirection: 'row',

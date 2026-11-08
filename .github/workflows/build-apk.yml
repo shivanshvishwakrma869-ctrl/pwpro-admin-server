@@ -66,4 +66,5 @@ jobs:
         run: |
           gh release upload v1.0.0 ./pwprobyshivansh.apk --clobber || true
           gh release upload v1.1.0 ./pwprobyshivansh.apk --clobber || true
-          gh release create v1.2.0 ./pwprobyshivansh.apk --title "PW Pro v1.2.0 (Fixed Lectures, Search & Notes)" --notes "Fixed lecture count bug, added in-batch chapter search, PDF notes dual tab, and keyboard fixes." || gh release upload v1.2.0 ./pwprobyshivansh.apk --clobber || true
+          gh release upload v1.2.0 ./pwprobyshivansh.apk --clobber || true
+          gh release create v1.3.0 ./pwprobyshivansh.apk --title "PW Pro v1.3.0 (Clean Vector UI Edition)" --notes "Replaced emojis with sleek vector icons, refined badge alignments, improved card typography, and enhanced browsing experience." || gh release upload v1.3.0 ./pwprobyshivansh.apk --clobber || true
