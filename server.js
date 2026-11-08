@@ -34,7 +34,19 @@ async function ensureDb() {
         device_id VARCHAR(255),
         created_at TIMESTAMPTZ DEFAULT NOW(),
         used_at TIMESTAMPTZ,
-        note TEXT
+        note TEXT,
+        validity_days INT DEFAULT 0,
+        expires_at TIMESTAMPTZ
+      );
+      ALTER TABLE activation_keys ADD COLUMN IF NOT EXISTS validity_days INT DEFAULT 0;
+      ALTER TABLE activation_keys ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+
+      CREATE TABLE IF NOT EXISTS app_announcements (
+        id SERIAL PRIMARY KEY,
+        active BOOLEAN DEFAULT TRUE,
+        message TEXT,
+        type VARCHAR(50) DEFAULT 'info',
+        updated_at TIMESTAMPTZ DEFAULT NOW()
       );
     `);
     isTableInitialized = true;
@@ -71,6 +83,14 @@ app.post('/api/activate', async (req, res) => {
 
     const row = result.rows[0];
 
+    // Check if key is already expired
+    if (row.expires_at && new Date() > new Date(row.expires_at)) {
+      return res.status(403).json({
+        success: false,
+        error: 'This activation key has expired. Please contact admin for a renewed key.',
+      });
+    }
+
     // If key is already used
     if (row.is_used) {
       // If used on the same device, allow re-activation (restore license)
@@ -80,6 +100,7 @@ app.post('/api/activate', async (req, res) => {
           message: 'Device license verified and restored.',
           key: cleanKey,
           activatedAt: row.used_at,
+          expiresAt: row.expires_at,
         });
       }
 
@@ -89,18 +110,25 @@ app.post('/api/activate', async (req, res) => {
       });
     }
 
+    // Calculate expiry if validity_days is set
+    const now = new Date();
+    let expiresAt = null;
+    if (row.validity_days && parseInt(row.validity_days) > 0) {
+      expiresAt = new Date(now.getTime() + parseInt(row.validity_days) * 24 * 60 * 60 * 1000).toISOString();
+    }
+
     // Mark key as used & bind deviceId
-    const now = new Date().toISOString();
     await pool.query(
-      'UPDATE activation_keys SET is_used = TRUE, device_id = $1, used_at = $2 WHERE key = $3',
-      [deviceId, now, cleanKey]
+      'UPDATE activation_keys SET is_used = TRUE, device_id = $1, used_at = $2, expires_at = COALESCE($3, expires_at) WHERE key = $4',
+      [deviceId, now.toISOString(), expiresAt, cleanKey]
     );
 
     return res.json({
       success: true,
       message: 'App activated successfully! Welcome to PW Pro.',
       key: cleanKey,
-      activatedAt: now,
+      activatedAt: now.toISOString(),
+      expiresAt,
     });
   } catch (err) {
     console.error('Activation DB error:', err);
@@ -126,12 +154,43 @@ function checkAdminAuth(req, res, next) {
 // 3. ADMIN PANEL API ENDPOINTS
 // ----------------------
 
+// Public Announcement Endpoint for Mobile App
+app.get('/api/announcement', async (req, res) => {
+  await ensureDb();
+  try {
+    const result = await pool.query(
+      'SELECT message, type, active FROM app_announcements ORDER BY id DESC LIMIT 1'
+    );
+    if (result.rows.length > 0 && result.rows[0].active && result.rows[0].message) {
+      return res.json({ active: true, message: result.rows[0].message, type: result.rows[0].type || 'info' });
+    }
+    return res.json({ active: false, message: '' });
+  } catch (err) {
+    return res.json({ active: false, message: '' });
+  }
+});
+
+// Admin Announcement Management
+app.post('/api/admin/announcement', checkAdminAuth, async (req, res) => {
+  await ensureDb();
+  const { message = '', active = true, type = 'info' } = req.body;
+  try {
+    await pool.query(
+      'INSERT INTO app_announcements (message, active, type, updated_at) VALUES ($1, $2, $3, NOW())',
+      [message.trim(), Boolean(active), type]
+    );
+    res.json({ success: true, message: 'Announcement updated successfully.' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update announcement.' });
+  }
+});
+
 // Get all keys & stats
 app.get('/api/admin/keys', checkAdminAuth, async (req, res) => {
   await ensureDb();
   try {
     const keysResult = await pool.query(
-      'SELECT key, is_used AS "isUsed", device_id AS "deviceId", created_at AS "createdAt", used_at AS "usedAt", note FROM activation_keys ORDER BY created_at DESC'
+      'SELECT key, is_used AS "isUsed", device_id AS "deviceId", created_at AS "createdAt", used_at AS "usedAt", note, validity_days AS "validityDays", expires_at AS "expiresAt" FROM activation_keys ORDER BY created_at DESC'
     );
     const keys = keysResult.rows;
 
@@ -152,8 +211,9 @@ app.get('/api/admin/keys', checkAdminAuth, async (req, res) => {
 // Add or Generate Keys
 app.post('/api/admin/keys', checkAdminAuth, async (req, res) => {
   await ensureDb();
-  const { customKey, count = 1, prefix = 'PWPRO', note = '' } = req.body;
+  const { customKey, count = 1, prefix = 'PWPRO', note = '', validityDays = 0 } = req.body;
   const createdKeys = [];
+  const vDays = parseInt(validityDays) || 0;
 
   try {
     if (customKey && customKey.trim()) {
@@ -165,8 +225,8 @@ app.post('/api/admin/keys', checkAdminAuth, async (req, res) => {
       }
 
       const insertRes = await pool.query(
-        'INSERT INTO activation_keys (key, is_used, note) VALUES ($1, FALSE, $2) RETURNING key, is_used AS "isUsed", created_at AS "createdAt", note',
-        [formatted, note || 'Custom Admin Key']
+        'INSERT INTO activation_keys (key, is_used, note, validity_days) VALUES ($1, FALSE, $2, $3) RETURNING key, is_used AS "isUsed", created_at AS "createdAt", note, validity_days AS "validityDays"',
+        [formatted, note || 'Custom Admin Key', vDays]
       );
       createdKeys.push(insertRes.rows[0]);
     } else {
@@ -179,8 +239,8 @@ app.post('/api/admin/keys', checkAdminAuth, async (req, res) => {
 
         try {
           const insertRes = await pool.query(
-            'INSERT INTO activation_keys (key, is_used, note) VALUES ($1, FALSE, $2) RETURNING key, is_used AS "isUsed", created_at AS "createdAt", note',
-            [generated, note || 'Auto-generated']
+            'INSERT INTO activation_keys (key, is_used, note, validity_days) VALUES ($1, FALSE, $2, $3) RETURNING key, is_used AS "isUsed", created_at AS "createdAt", note, validity_days AS "validityDays"',
+            [generated, note || 'Auto-generated', vDays]
           );
           createdKeys.push(insertRes.rows[0]);
         } catch (e) {

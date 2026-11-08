@@ -11,6 +11,7 @@ import {
   Alert,
   TextInput,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
@@ -52,6 +53,8 @@ export default function PlayerScreen({ route, navigation }: any) {
   const [streamUrl, setStreamUrl] = useState<string>('');
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
   const [showSpeedModal, setShowSpeedModal] = useState<boolean>(false);
+  const [savedPosition, setSavedPosition] = useState<number>(0);
+  const [resumeToast, setResumeToast] = useState<string | null>(null);
   const [availableQualities, setAvailableQualities] = useState<Array<{ id: number; height: number; label: string }>>([
     { id: -1, height: 0, label: 'Auto' },
   ]);
@@ -71,6 +74,28 @@ export default function PlayerScreen({ route, navigation }: any) {
   const downloaded = isDownloaded(lecture.title);
 
   useEffect(() => {
+    // 1. Load saved playback position to resume seamlessly
+    AsyncStorage.getItem(`pw_pos_${lectureId}`).then((val) => {
+      if (val) {
+        const sec = parseFloat(val);
+        if (sec > 5) {
+          setSavedPosition(sec);
+          const m = Math.floor(sec / 60);
+          const s = Math.floor(sec % 60);
+          setResumeToast(`Resuming from ${m}:${s < 10 ? '0' : ''}${s}`);
+          setTimeout(() => setResumeToast(null), 4000);
+        }
+      }
+    });
+
+    // 2. Load preferred persistent playback speed
+    AsyncStorage.getItem('preferred_playback_speed').then((sp) => {
+      if (sp) {
+        const num = parseFloat(sp);
+        if (!isNaN(num) && num > 0) setPlaybackSpeed(num);
+      }
+    });
+
     // Record watch history for "Continue Watching"
     saveWatchHistory({
       lectureId,
@@ -156,6 +181,7 @@ export default function PlayerScreen({ route, navigation }: any) {
   const handleSelectSpeed = (speed: number) => {
     setPlaybackSpeed(speed);
     setShowSpeedModal(false);
+    AsyncStorage.setItem('preferred_playback_speed', speed.toString()).catch(() => {});
     if (webViewRef.current) {
       webViewRef.current.injectJavaScript(`
         if (window.videoElement) {
@@ -166,14 +192,15 @@ export default function PlayerScreen({ route, navigation }: any) {
     }
   };
 
-  const handleSelectQuality = (levelId: number, label: string) => {
-    setSelectedQuality(levelId);
-    setQualityLabel(label);
-    setShowQualityModal(false);
+  const handleTogglePip = () => {
     if (webViewRef.current) {
       webViewRef.current.injectJavaScript(`
-        if (window.hlsInstance) {
-          window.hlsInstance.currentLevel = ${levelId};
+        if (document.pictureInPictureElement) {
+          document.exitPictureInPicture().catch(function(){});
+        } else if (window.videoElement && window.videoElement.requestPictureInPicture) {
+          window.videoElement.requestPictureInPicture().catch(function(e){
+            console.log('PiP not available', e);
+          });
         }
         true;
       `);
@@ -193,6 +220,16 @@ export default function PlayerScreen({ route, navigation }: any) {
           })),
         ];
         setAvailableQualities(mapped);
+      } else if (data.type === 'PROGRESS') {
+        const cur = Math.floor(data.currentTime || 0);
+        const dur = Math.floor(data.duration || 0);
+        if (cur > 0) {
+          AsyncStorage.setItem(`pw_pos_${lectureId}`, cur.toString()).catch(() => {});
+          if (dur > 0) {
+            const pct = Math.min(Math.round((cur / dur) * 100), 100);
+            AsyncStorage.setItem(`pw_pct_${lectureId}`, pct.toString()).catch(() => {});
+          }
+        }
       }
     } catch {}
   };
@@ -266,12 +303,41 @@ export default function PlayerScreen({ route, navigation }: any) {
     const video = document.getElementById('player');
     window.videoElement = video;
     const stream = "${streamUrl}";
+    const initialTime = ${savedPosition || 0};
+    const initialSpeed = ${playbackSpeed || 1.0};
+    let hasSeekedToResume = false;
 
     function notifyRN(msg) {
       if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
         window.ReactNativeWebView.postMessage(JSON.stringify(msg));
       }
     }
+
+    function applyResumeAndSpeed() {
+      if (initialSpeed !== 1.0) {
+        video.playbackRate = initialSpeed;
+      }
+      if (!hasSeekedToResume && initialTime > 5) {
+        hasSeekedToResume = true;
+        video.currentTime = initialTime;
+      }
+    }
+
+    video.addEventListener('loadedmetadata', applyResumeAndSpeed);
+    video.addEventListener('canplay', applyResumeAndSpeed);
+
+    let lastProgressReport = 0;
+    video.addEventListener('timeupdate', function() {
+      const now = Date.now();
+      if (now - lastProgressReport > 2000) {
+        lastProgressReport = now;
+        notifyRN({
+          type: 'PROGRESS',
+          currentTime: video.currentTime,
+          duration: video.duration || 0
+        });
+      }
+    });
 
     if (Hls.isSupported() && (stream.includes('.m3u8') || stream.includes('/api/m') || stream.includes('master') || stream.includes('playlist'))) {
       const hls = new Hls({
@@ -290,6 +356,7 @@ export default function PlayerScreen({ route, navigation }: any) {
       hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, function(event, data) {
         video.play().catch(function() {});
+        applyResumeAndSpeed();
         if (hls.levels && hls.levels.length > 0) {
           notifyRN({
             type: 'QUALITIES',
@@ -321,6 +388,7 @@ export default function PlayerScreen({ route, navigation }: any) {
     } else {
       video.src = stream;
       video.play().catch(function() {});
+      applyResumeAndSpeed();
     }
   </script>
 </body>
@@ -367,6 +435,12 @@ export default function PlayerScreen({ route, navigation }: any) {
               onMessage={onMessageFromPlayer}
               userAgent="Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
             />
+            {resumeToast && (
+              <View style={styles.resumeToastWrap} pointerEvents="none">
+                <Ionicons name="time" size={14} color="#000" />
+                <Text style={styles.resumeToastText}>{resumeToast}</Text>
+              </View>
+            )}
             {seekFeedback && (
               <View
                 style={[
@@ -423,6 +497,16 @@ export default function PlayerScreen({ route, navigation }: any) {
           <Ionicons name="options-outline" size={15} color={colors.accentText} />
           <Text style={[styles.speedBtnText, { color: colors.accentText }]}>
             {qualityLabel}
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.speedBtn, { backgroundColor: colors.accentLight }]}
+          onPress={handleTogglePip}
+        >
+          <Ionicons name="albums-outline" size={15} color={colors.accentText} />
+          <Text style={[styles.speedBtnText, { color: colors.accentText }]}>
+            PiP
           </Text>
         </Pressable>
 
@@ -786,6 +870,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     marginTop: 4,
+  },
+  resumeToastWrap: {
+    position: 'absolute',
+    top: 12,
+    alignSelf: 'center',
+    backgroundColor: '#22C55E',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+    zIndex: 10,
+  },
+  resumeToastText: {
+    color: '#000000',
+    fontSize: 12,
+    fontWeight: '700',
   },
   videoPlayer: {
     width: '100%',

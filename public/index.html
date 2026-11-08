@@ -327,6 +327,16 @@
           </select>
         </div>
         <div class="form-group">
+          <label>Key Validity</label>
+          <select id="validityInput">
+            <option value="0" selected>Lifetime</option>
+            <option value="30">30 Days</option>
+            <option value="90">90 Days</option>
+            <option value="180">6 Months</option>
+            <option value="365">1 Year</option>
+          </select>
+        </div>
+        <div class="form-group">
           <label>Note / Student</label>
           <input type="text" id="noteInput" placeholder="e.g. Arjuna Batch 2026">
         </div>
@@ -334,6 +344,20 @@
           <span>+ Generate Keys</span>
         </button>
       </div>
+    </div>
+
+    <!-- Live In-App Announcement Broadcast -->
+    <div class="section-card">
+      <div class="section-title">📢 Live In-App Broadcast Banner</div>
+      <p style="font-size: 13px; color: #a3a3a3; margin-bottom: 12px;">
+        Publish an instant announcement banner displayed at the top of the mobile app for all students.
+      </p>
+      <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+        <input type="text" id="announcementInput" placeholder="e.g. New Yakeen 2026 Batch uploaded! Pull to refresh." style="flex: 1; min-width: 280px;">
+        <button class="btn-primary" onclick="publishAnnouncement(true)">Publish Banner</button>
+        <button class="action-btn btn-danger" onclick="publishAnnouncement(false)" style="padding: 11px 16px;">Clear Banner</button>
+      </div>
+      <div id="announcementStatus" style="margin-top: 10px; font-size: 12px; color: #22C55E;"></div>
     </div>
 
     <!-- Keys Table Section -->
@@ -345,15 +369,17 @@
             <tr>
               <th>Activation Key</th>
               <th>Status</th>
+              <th>Validity</th>
               <th>Bound Device ID</th>
               <th>Activated Date</th>
+              <th>Expires</th>
               <th>Note</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody id="keysTableBody">
             <tr>
-              <td colspan="6" style="text-align: center; color: #a3a3a3;">Loading keys...</td>
+              <td colspan="8" style="text-align: center; color: #a3a3a3;">Loading keys...</td>
             </tr>
           </tbody>
         </table>
@@ -393,6 +419,7 @@
           document.getElementById('mainContent').style.display = 'block';
           const data = await res.json();
           renderData(data);
+          loadAnnouncement();
         } else {
           alert('Incorrect admin password.');
           logout();
@@ -426,6 +453,9 @@
               ${k.isUsed ? 'USED (Locked)' : 'AVAILABLE'}
             </span>
           </td>
+          <td style="color: #22C55E; font-weight: 600;">
+            ${k.validityDays && parseInt(k.validityDays) > 0 ? `${k.validityDays} Days` : 'Lifetime'}
+          </td>
           <td>
             <span class="device-id" title="${k.deviceId || 'Not activated yet'}">
               ${k.deviceId || '—'}
@@ -433,6 +463,9 @@
           </td>
           <td style="color: #a3a3a3;">
             ${k.usedAt ? new Date(k.usedAt).toLocaleString() : '—'}
+          </td>
+          <td style="color: ${k.expiresAt && new Date() > new Date(k.expiresAt) ? '#ef4444' : '#a3a3a3'};">
+            ${k.expiresAt ? new Date(k.expiresAt).toLocaleDateString() : '—'}
           </td>
           <td style="color: #a3a3a3;">${k.note || '—'}</td>
           <td>
@@ -445,10 +478,54 @@
       `).join('');
     }
 
+    async function loadAnnouncement() {
+      try {
+        const res = await fetch('/api/announcement');
+        const data = await res.json();
+        const statEl = document.getElementById('announcementStatus');
+        const inputEl = document.getElementById('announcementInput');
+        if (data.active && data.message) {
+          inputEl.value = data.message;
+          statEl.innerText = `● Live on all apps: "${data.message}"`;
+          statEl.style.color = '#22C55E';
+        } else {
+          statEl.innerText = '○ No banner active currently.';
+          statEl.style.color = '#a3a3a3';
+        }
+      } catch {}
+    }
+
+    async function publishAnnouncement(active) {
+      const message = document.getElementById('announcementInput').value.trim();
+      if (active && !message) {
+        return alert('Please enter a message to broadcast.');
+      }
+
+      try {
+        const res = await fetch('/api/admin/announcement', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-admin-password': adminToken,
+          },
+          body: JSON.stringify({ message: active ? message : '', active }),
+        });
+        if (res.ok) {
+          alert(active ? 'Banner published to all mobile apps!' : 'Banner cleared.');
+          loadAnnouncement();
+        } else {
+          alert('Failed to update banner.');
+        }
+      } catch (e) {
+        alert('Server error.');
+      }
+    }
+
     async function generateKeys() {
       const customKey = document.getElementById('customKeyInput').value.trim();
       const prefix = document.getElementById('prefixInput').value.trim();
       const count = document.getElementById('countInput').value;
+      const validityDays = document.getElementById('validityInput').value;
       const note = document.getElementById('noteInput').value.trim();
 
       const res = await fetch('/api/admin/keys', {
@@ -457,7 +534,7 @@
           'Content-Type': 'application/json',
           'x-admin-password': adminToken
         },
-        body: JSON.stringify({ customKey, prefix, count, note })
+        body: JSON.stringify({ customKey, prefix, count, validityDays, note })
       });
 
       const json = await res.json();

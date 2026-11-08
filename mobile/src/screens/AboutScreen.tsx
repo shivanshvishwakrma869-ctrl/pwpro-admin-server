@@ -54,7 +54,7 @@ export default function AboutScreen() {
           <Ionicons name="school" size={36} color={colors.accentText} />
         </View>
         <Text style={[styles.appName, { color: colors.text }]}>PW Pro by Shivansh</Text>
-        <Text style={[styles.appVersion, { color: colors.textSecondary }]}>v1.3.0 (VIP Edition)</Text>
+        <Text style={[styles.appVersion, { color: colors.textSecondary }]}>v1.4.0 (VIP Edition)</Text>
       </View>
 
       {/* License Section */}

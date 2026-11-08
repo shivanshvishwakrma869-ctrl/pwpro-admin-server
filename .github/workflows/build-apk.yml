@@ -67,4 +67,5 @@ jobs:
           gh release upload v1.0.0 ./pwprobyshivansh.apk --clobber || true
           gh release upload v1.1.0 ./pwprobyshivansh.apk --clobber || true
           gh release upload v1.2.0 ./pwprobyshivansh.apk --clobber || true
-          gh release create v1.3.0 ./pwprobyshivansh.apk --title "PW Pro v1.3.0 (Clean Vector UI Edition)" --notes "Replaced emojis with sleek vector icons, refined badge alignments, improved card typography, and enhanced browsing experience." || gh release upload v1.3.0 ./pwprobyshivansh.apk --clobber || true
+          gh release upload v1.3.0 ./pwprobyshivansh.apk --clobber || true
+          gh release create v1.4.0 ./pwprobyshivansh.apk --title "PW Pro v1.4.0 (Pro Features Edition)" --notes "Added PiP & background audio, exact timestamp resume & progress bars, persistent playback speed, 1-click chapter notes downloader, offline PDF reader, live in-app broadcast banner, and key expiry duration support in admin panel." || gh release upload v1.4.0 ./pwprobyshivansh.apk --clobber || true

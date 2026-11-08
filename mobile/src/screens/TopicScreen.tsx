@@ -10,6 +10,7 @@ import {
   Keyboard,
   Alert,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
@@ -29,6 +30,7 @@ export default function TopicScreen({ route, navigation }: any) {
   const [lectures, setLectures] = useState<Lecture[]>([]);
   const [notes, setNotes] = useState<Attachment[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [progressMap, setProgressMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -45,6 +47,19 @@ export default function TopicScreen({ route, navigation }: any) {
       setLectures(lecturesData);
       setNotes(notesData);
 
+      // Load progress map for each lecture
+      const pMap: Record<string, number> = {};
+      await Promise.all(
+        lecturesData.map(async (lec) => {
+          const id = lec._id || lec.scheduleId || lec.videoId || '';
+          if (id) {
+            const pct = await AsyncStorage.getItem(`pw_pct_${id}`);
+            if (pct) pMap[id] = parseInt(pct, 10);
+          }
+        })
+      );
+      setProgressMap(pMap);
+
       // If topic has no videos but has notes (e.g. Mind Maps, Study Module), auto-switch to Notes tab
       if (lecturesData.length === 0 && notesData.length > 0) {
         setActiveTab('notes');
@@ -54,6 +69,30 @@ export default function TopicScreen({ route, navigation }: any) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDownloadAllNotes = () => {
+    if (notes.length === 0) return;
+    Alert.alert(
+      'Download All Notes',
+      `Download all ${notes.length} PDF notes for this chapter into your offline library?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Download All',
+          onPress: () => {
+            notes.forEach((att, idx) => {
+              if (att.attachmentUrl) {
+                setTimeout(() => {
+                  downloadFile(att.attachmentUrl!, att.name || `Note_${idx + 1}.pdf`, 'pdf', batchName);
+                }, idx * 300);
+              }
+            });
+            Alert.alert('Queued for Download', `${notes.length} PDF notes are downloading.`);
+          },
+        },
+      ]
+    );
   };
 
   const handleToggleBookmark = (item: Lecture) => {
@@ -165,6 +204,14 @@ export default function TopicScreen({ route, navigation }: any) {
                   </Text>
                 </View>
               ) : null}
+              {progressMap[lectureId] ? (
+                <View style={styles.metaBadge}>
+                  <Ionicons name="checkmark-circle-outline" size={12} color={colors.accent} />
+                  <Text style={[styles.lectureDuration, { color: colors.accent, fontWeight: '700' }]}>
+                    {progressMap[lectureId]}% watched
+                  </Text>
+                </View>
+              ) : null}
             </View>
           </View>
         </View>
@@ -185,7 +232,9 @@ export default function TopicScreen({ route, navigation }: any) {
             }
           >
             <Ionicons name="play" size={15} color="#000" />
-            <Text style={styles.playBtnText}>Watch Lecture</Text>
+            <Text style={styles.playBtnText}>
+              {progressMap[lectureId] ? 'Resume Lecture' : 'Watch Lecture'}
+            </Text>
           </Pressable>
 
           <View style={styles.secondaryActions}>
@@ -218,6 +267,17 @@ export default function TopicScreen({ route, navigation }: any) {
             </Pressable>
           </View>
         </View>
+
+        {progressMap[lectureId] ? (
+          <View style={[styles.cardProgressBarTrack, { backgroundColor: colors.inputBg }]}>
+            <View
+              style={[
+                styles.cardProgressBarFill,
+                { width: `${progressMap[lectureId]}%`, backgroundColor: colors.accent },
+              ]}
+            />
+          </View>
+        ) : null}
       </Pressable>
     );
   };
@@ -364,6 +424,18 @@ export default function TopicScreen({ route, navigation }: any) {
             </Pressable>
           )}
         </View>
+
+        {activeTab === 'notes' && notes.length > 0 && (
+          <Pressable
+            style={[styles.downloadAllPill, { backgroundColor: colors.accentLight, borderColor: colors.accent }]}
+            onPress={handleDownloadAllNotes}
+          >
+            <Ionicons name="cloud-download-outline" size={15} color={colors.accentText} />
+            <Text style={[styles.downloadAllText, { color: colors.accentText }]}>
+              Download All Chapter Notes ({notes.length} PDFs)
+            </Text>
+          </Pressable>
+        )}
       </View>
 
       {loading ? (
@@ -587,5 +659,28 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 14,
+  },
+  cardProgressBarTrack: {
+    height: 3,
+    width: '100%',
+    overflow: 'hidden',
+  },
+  cardProgressBarFill: {
+    height: '100%',
+  },
+  downloadAllPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginTop: 8,
+  },
+  downloadAllText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

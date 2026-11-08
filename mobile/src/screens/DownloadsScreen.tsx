@@ -6,7 +6,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useDownloads } from '../context/DownloadContext';
 import { DownloadItem } from '../types';
 
-export default function DownloadsScreen() {
+export default function DownloadsScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const { downloads, removeDownload, openOrShareFile, downloadingId, downloadProgress } =
@@ -27,7 +27,17 @@ export default function DownloadsScreen() {
           styles.card,
           { backgroundColor: colors.card, borderColor: colors.cardBorder },
         ]}
-        onPress={() => openOrShareFile(item.fileUri)}
+        onPress={() => {
+          if (isPdf && navigation) {
+            navigation.navigate('PdfViewer', {
+              title: item.title,
+              url: item.fileUri,
+              isLocal: true,
+            });
+          } else {
+            openOrShareFile(item.fileUri);
+          }
+        }}
       >
         <View
           style={[

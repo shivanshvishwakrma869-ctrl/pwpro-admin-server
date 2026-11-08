@@ -15,18 +15,22 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 import { getBatches, getWatchHistory } from '../services/api';
 import { Batch, WatchHistoryItem } from '../types';
 
 export default function HomeScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
   const { colors, isDark, toggleTheme } = useTheme();
+  const { authApiUrl } = useAuth();
 
   const [batches, setBatches] = useState<Batch[]>([]);
   const [filteredBatches, setFilteredBatches] = useState<Batch[]>([]);
   const [watchHistory, setWatchHistory] = useState<WatchHistoryItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [announcement, setAnnouncement] = useState<string | null>(null);
+  const [dismissedBanner, setDismissedBanner] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -41,6 +45,17 @@ export default function HomeScreen({ navigation }: any) {
       setBatches(batchesData);
       setFilteredBatches(batchesData);
       setWatchHistory(historyData);
+
+      // Fetch live announcement from admin backend
+      if (authApiUrl) {
+        fetch(`${authApiUrl.replace(/\/+$/, '')}/api/announcement`)
+          .then((r) => r.json())
+          .then((data) => {
+            if (data.active && data.message) setAnnouncement(data.message);
+            else setAnnouncement(null);
+          })
+          .catch(() => {});
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -131,6 +146,21 @@ export default function HomeScreen({ navigation }: any) {
           />
         </Pressable>
       </View>
+
+      {/* Live In-App Broadcast Announcement */}
+      {announcement && !dismissedBanner ? (
+        <View style={[styles.announcementBanner, { backgroundColor: colors.accentLight, borderColor: colors.accent }]}>
+          <View style={styles.announcementContent}>
+            <Ionicons name="megaphone" size={16} color={colors.accentText} />
+            <Text style={[styles.announcementText, { color: colors.accentText }]}>
+              {announcement}
+            </Text>
+          </View>
+          <Pressable onPress={() => setDismissedBanner(true)} hitSlop={10}>
+            <Ionicons name="close" size={16} color={colors.accentText} />
+          </Pressable>
+        </View>
+      ) : null}
 
       {/* Search Bar */}
       <View
@@ -414,6 +444,28 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  announcementBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 14,
+    gap: 8,
+  },
+  announcementContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  announcementText: {
+    fontSize: 12,
+    fontWeight: '700',
+    flex: 1,
   },
   searchBox: {
     flexDirection: 'row',

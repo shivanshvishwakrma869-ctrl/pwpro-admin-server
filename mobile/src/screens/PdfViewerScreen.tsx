@@ -7,15 +7,22 @@ import { useTheme } from '../context/ThemeContext';
 import { useDownloads } from '../context/DownloadContext';
 
 export default function PdfViewerScreen({ route, navigation }: any) {
-  const { title, url } = route.params;
+  const { title, url, isLocal } = route.params;
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
-  const { downloadFile } = useDownloads();
+  const { downloadFile, openOrShareFile } = useDownloads();
 
-  const viewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`;
+  const isLocalFile = isLocal || (url && url.startsWith('file://'));
+  const viewerUrl = isLocalFile
+    ? url
+    : `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`;
 
   const handleDownload = () => {
-    downloadFile(url, title || 'Notes.pdf', 'pdf');
+    if (isLocalFile) {
+      openOrShareFile(url);
+    } else {
+      downloadFile(url, title || 'Notes.pdf', 'pdf');
+    }
   };
 
   return (
@@ -40,7 +47,11 @@ export default function PdfViewerScreen({ route, navigation }: any) {
           style={[styles.downloadBtn, { backgroundColor: colors.accentLight }]}
           onPress={handleDownload}
         >
-          <Ionicons name="download-outline" size={18} color={colors.accentText} />
+          <Ionicons
+            name={isLocalFile ? 'share-outline' : 'download-outline'}
+            size={18}
+            color={colors.accentText}
+          />
         </Pressable>
       </View>
 

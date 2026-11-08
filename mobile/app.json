@@ -2,7 +2,7 @@
   "expo": {
     "name": "PW Pro by Shivansh",
     "slug": "pwprobyshivansh",
-    "version": "1.3.0",
+    "version": "1.4.0",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
