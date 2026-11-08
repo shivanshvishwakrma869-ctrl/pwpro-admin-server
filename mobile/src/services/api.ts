@@ -236,20 +236,49 @@ export async function getTopicLectures(
   topicId: string
 ): Promise<Lecture[]> {
   try {
-    let res: any;
+    let items: any[] = [];
+
+    // Strategy 1: Batch-service schedule contents by tagId
     try {
-      res = await fetchFromProxy(
+      const r1: any = await fetchFromProxy(
         `/batch-service/v3/batch-subject-schedules/${batchId}/subject/${subjectId}/contents?skip=0&limit=50&contentType=videos&tagId=${topicId}`
       );
-    } catch {
-      res = await fetchFromProxy(
-        `/v2/batches/${batchId}/subject/${subjectId}/contents?page=1&contentType=videos&tag=${encodeURIComponent(
-          topicId
-        )}`
-      );
+      if (Array.isArray(r1) && r1.length > 0) items = r1;
+      else if (Array.isArray(r1?.data) && r1.data.length > 0) items = r1.data;
+    } catch {}
+
+    // Strategy 2: v2 batches contents with tag filter
+    if (items.length === 0) {
+      try {
+        const r2: any = await fetchFromProxy(
+          `/v2/batches/${batchId}/subject/${subjectId}/contents?page=1&contentType=videos&tag=${encodeURIComponent(
+            topicId
+          )}`
+        );
+        if (Array.isArray(r2) && r2.length > 0) items = r2;
+        else if (Array.isArray(r2?.data) && r2.data.length > 0) items = r2.data;
+      } catch {}
     }
 
-    const items = Array.isArray(res) ? res : res?.data || [];
+    // Strategy 3: v2 subject video contents directly
+    if (items.length === 0) {
+      try {
+        const r3: any = await fetchFromProxy(
+          `/v2/batches/${batchId}/subject/${subjectId}/contents?page=1&contentType=videos`
+        );
+        const candidate = Array.isArray(r3) ? r3 : r3?.data || [];
+        if (candidate.length > 0) {
+          // If topic tags match, filter by tag, else return all subject videos
+          const filtered = candidate.filter((item: any) =>
+            Array.isArray(item.tags)
+              ? item.tags.some((tg: any) => (tg._id || tg.id || tg) === topicId)
+              : true
+          );
+          items = filtered.length > 0 ? filtered : candidate;
+        }
+      } catch {}
+    }
+
     return items.map((item: any) => {
       const vDetails = item.videoDetails || {};
       const childId = item.childId || item.scheduleId || item._id;
@@ -281,7 +310,7 @@ export async function getTopicLectures(
   }
 }
 
-// 5. Build Direct Fast Stream URL (Direct from AWS CloudFront/Source CDN for zero-buffer streaming)
+// 5. Build Direct Fast Stream URL (Zero-buffer HLS stream with signed token)
 export async function getFastStreamUrl(params: {
   videoId?: string;
   scheduleId?: string;
@@ -293,37 +322,8 @@ export async function getFastStreamUrl(params: {
   url?: string;
   directVideoUrl?: string;
 }): Promise<string> {
-  // 1. If direct URL already available from lecture details
-  if (
-    params.directVideoUrl &&
-    params.directVideoUrl.startsWith('http') &&
-    !params.directVideoUrl.includes('penpencilvdo')
-  ) {
-    return params.directVideoUrl.replace(
-      'd2bps9nv7fq41q.cloudfront.net',
-      'd2bps9p1kiy4ka.cloudfront.net'
-    );
-  }
-
-  // 2. Query /v1/videos/{videoId} for the direct origin CloudFront stream
-  if (params.videoId) {
-    try {
-      const res = await fetchFromProxy<any>(`/v1/videos/${encodeURIComponent(params.videoId)}`);
-      const v = res?.data || res;
-      if (v && typeof v.videoUrl === 'string' && v.videoUrl.trim().length > 0) {
-        let direct = v.videoUrl
-          .trim()
-          .replace('d2bps9nv7fq41q.cloudfront.net', 'd2bps9p1kiy4ka.cloudfront.net');
-        if (direct.startsWith('http')) {
-          return direct;
-        }
-      }
-    } catch (e) {
-      // Fallback
-    }
-  }
-
-  // 3. Fallback to proxy stream
+  // Always use the verified CORS-enabled HLS proxy manifest which auto-refreshes segments
+  // and avoids 403 Forbidden errors from raw unsigned CloudFront MPD/M3U8 URLs
   return getStreamUrl(params);
 }
 

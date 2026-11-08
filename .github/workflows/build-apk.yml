@@ -64,4 +64,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload v1.0.0 ./pwprobyshivansh.apk --clobber
+          gh release upload v1.0.0 ./pwprobyshivansh.apk --clobber || true
+          gh release create v1.1.0 ./pwprobyshivansh.apk --title "PW Pro v1.1.0 (Fresh Release)" --notes "Fresh build with zero-buffer streaming, quality selector, double-tap seek, and Next Toppers." || gh release upload v1.1.0 ./pwprobyshivansh.apk --clobber || true

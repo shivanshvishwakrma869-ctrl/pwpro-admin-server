@@ -29,7 +29,7 @@ export default function HomeScreen({ navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const categories = ['All', 'JEE', 'NEET', 'Class 12', 'Class 11', 'Class 10', 'Foundation', 'NDA'];
+  const categories = ['All', 'Physics Wallah', 'Next Toppers', 'JEE', 'NEET', 'Class 12', 'Class 11', 'Class 10', 'Foundation', 'NDA'];
 
   const loadData = async (force = false) => {
     try {
@@ -71,12 +71,27 @@ export default function HomeScreen({ navigation }: any) {
     let result = batches;
     if (category !== 'All') {
       const catLower = category.toLowerCase();
-      result = result.filter(
-        (b) =>
-          b.name.toLowerCase().includes(catLower) ||
-          b.byName?.toLowerCase().includes(catLower) ||
-          (b.classes && b.classes.some((c) => c.toLowerCase().includes(catLower)))
-      );
+      if (catLower === 'next toppers') {
+        result = result.filter(
+          (b) =>
+            b.name.toLowerCase().includes('next topper') ||
+            b.byName?.toLowerCase().includes('next topper') ||
+            b.slug.toLowerCase().includes('next-topper')
+        );
+      } else if (catLower === 'physics wallah') {
+        result = result.filter(
+          (b) =>
+            !b.name.toLowerCase().includes('next topper') &&
+            !b.byName?.toLowerCase().includes('next topper')
+        );
+      } else {
+        result = result.filter(
+          (b) =>
+            b.name.toLowerCase().includes(catLower) ||
+            b.byName?.toLowerCase().includes(catLower) ||
+            (b.classes && b.classes.some((c) => c.toLowerCase().includes(catLower)))
+        );
+      }
     }
     if (query.trim().length > 0) {
       const q = query.toLowerCase();

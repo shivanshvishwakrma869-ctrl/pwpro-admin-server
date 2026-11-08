@@ -52,6 +52,14 @@ export default function PlayerScreen({ route, navigation }: any) {
   const [streamUrl, setStreamUrl] = useState<string>('');
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
   const [showSpeedModal, setShowSpeedModal] = useState<boolean>(false);
+  const [availableQualities, setAvailableQualities] = useState<Array<{ id: number; height: number; label: string }>>([
+    { id: -1, height: 0, label: 'Auto' },
+  ]);
+  const [selectedQuality, setSelectedQuality] = useState<number>(-1);
+  const [qualityLabel, setQualityLabel] = useState<string>('Auto');
+  const [showQualityModal, setShowQualityModal] = useState<boolean>(false);
+  const [seekFeedback, setSeekFeedback] = useState<{ show: boolean; side: 'left' | 'right'; count: number } | null>(null);
+  const lastTapRef = useRef<{ time: number; x: number }>({ time: 0, x: 0 });
   const [activeTab, setActiveTab] = useState<'notes' | 'mynotes' | 'details'>('notes');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [loadingAttachments, setLoadingAttachments] = useState<boolean>(true);
@@ -140,6 +148,9 @@ export default function PlayerScreen({ route, navigation }: any) {
         true;
       `);
     }
+    const side = seconds < 0 ? 'left' : 'right';
+    setSeekFeedback({ show: true, side, count: Math.abs(seconds) });
+    setTimeout(() => setSeekFeedback(null), 800);
   };
 
   const handleSelectSpeed = (speed: number) => {
@@ -153,6 +164,37 @@ export default function PlayerScreen({ route, navigation }: any) {
         true;
       `);
     }
+  };
+
+  const handleSelectQuality = (levelId: number, label: string) => {
+    setSelectedQuality(levelId);
+    setQualityLabel(label);
+    setShowQualityModal(false);
+    if (webViewRef.current) {
+      webViewRef.current.injectJavaScript(`
+        if (window.hlsInstance) {
+          window.hlsInstance.currentLevel = ${levelId};
+        }
+        true;
+      `);
+    }
+  };
+
+  const onMessageFromPlayer = (event: any) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+      if (data.type === 'QUALITIES' && Array.isArray(data.levels)) {
+        const mapped = [
+          { id: -1, height: 0, label: 'Auto' },
+          ...data.levels.map((lvl: any, index: number) => ({
+            id: index,
+            height: lvl.height || 0,
+            label: lvl.height ? `${lvl.height}p` : `Option ${index + 1}`,
+          })),
+        ];
+        setAvailableQualities(mapped);
+      }
+    } catch {}
   };
 
   const handleToggleBookmark = () => {
@@ -225,16 +267,40 @@ export default function PlayerScreen({ route, navigation }: any) {
     window.videoElement = video;
     const stream = "${streamUrl}";
 
-    if (Hls.isSupported() && (stream.includes('.m3u8') || stream.includes('master') || stream.includes('playlist'))) {
+    function notifyRN(msg) {
+      if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+        window.ReactNativeWebView.postMessage(JSON.stringify(msg));
+      }
+    }
+
+    if (Hls.isSupported() && (stream.includes('.m3u8') || stream.includes('/api/m') || stream.includes('master') || stream.includes('playlist'))) {
       const hls = new Hls({
         enableWorker: true,
-        lowLatencyMode: true,
-        backBufferLength: 60
+        lowLatencyMode: false,
+        maxBufferLength: 60,
+        maxMaxBufferLength: 120,
+        maxBufferSize: 60 * 1000 * 1000,
+        backBufferLength: 90,
+        highBufferWatchdogPeriod: 2,
+        nudgeOffset: 0.1,
+        nudgeMaxRetry: 5
       });
+      window.hlsInstance = hls;
       hls.loadSource(stream);
       hls.attachMedia(video);
-      hls.on(Hls.Events.MANIFEST_PARSED, function() {
-        video.play().catch(() => {});
+      hls.on(Hls.Events.MANIFEST_PARSED, function(event, data) {
+        video.play().catch(function() {});
+        if (hls.levels && hls.levels.length > 0) {
+          notifyRN({
+            type: 'QUALITIES',
+            levels: hls.levels.map(function(l, idx) {
+              return { id: idx, height: l.height || 0, bitrate: l.bitrate || 0 };
+            })
+          });
+        }
+      });
+      hls.on(Hls.Events.LEVEL_SWITCHED, function(event, data) {
+        notifyRN({ type: 'LEVEL_SWITCHED', level: data.level });
       });
       hls.on(Hls.Events.ERROR, function(event, data) {
         if (data.fatal) {
@@ -254,7 +320,7 @@ export default function PlayerScreen({ route, navigation }: any) {
       });
     } else {
       video.src = stream;
-      video.play().catch(() => {});
+      video.play().catch(function() {});
     }
   </script>
 </body>
@@ -285,19 +351,42 @@ export default function PlayerScreen({ route, navigation }: any) {
       {/* Video Player */}
       <View style={styles.videoWrapper}>
         {streamUrl ? (
-          <WebViewComponent
-            ref={webViewRef}
-            style={styles.videoPlayer}
-            source={{ html: playerHtml }}
-            allowsFullscreenVideo={true}
-            allowsInlineMediaPlayback={true}
-            mediaPlaybackRequiresUserAction={false}
-            javaScriptEnabled={true}
-            domStorageEnabled={true}
-            originWhitelist={['*']}
-            mixedContentMode="always"
-            userAgent="Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
-          />
+          <>
+            <WebViewComponent
+              key={streamUrl}
+              ref={webViewRef}
+              style={styles.videoPlayer}
+              source={{ html: playerHtml }}
+              allowsFullscreenVideo={true}
+              allowsInlineMediaPlayback={true}
+              mediaPlaybackRequiresUserAction={false}
+              javaScriptEnabled={true}
+              domStorageEnabled={true}
+              originWhitelist={['*']}
+              mixedContentMode="always"
+              onMessage={onMessageFromPlayer}
+              userAgent="Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+            />
+            {seekFeedback && (
+              <View
+                style={[
+                  styles.seekFeedbackOverlay,
+                  seekFeedback.side === 'left' ? styles.seekLeft : styles.seekRight,
+                ]}
+                pointerEvents="none"
+              >
+                <Ionicons
+                  name={seekFeedback.side === 'left' ? 'refresh' : 'play-forward'}
+                  size={32}
+                  color="#ffffff"
+                />
+                <Text style={styles.seekFeedbackText}>
+                  {seekFeedback.side === 'left' ? '-' : '+'}
+                  {seekFeedback.count}s
+                </Text>
+              </View>
+            )}
+          </>
         ) : (
           <View style={styles.videoPlaceholder}>
             <ActivityIndicator size="large" color={colors.accent} />
@@ -323,7 +412,17 @@ export default function PlayerScreen({ route, navigation }: any) {
         >
           <Ionicons name="speedometer-outline" size={15} color={colors.accentText} />
           <Text style={[styles.speedBtnText, { color: colors.accentText }]}>
-            {playbackSpeed}x Speed
+            {playbackSpeed}x
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.speedBtn, { backgroundColor: colors.accentLight }]}
+          onPress={() => setShowQualityModal(true)}
+        >
+          <Ionicons name="options-outline" size={15} color={colors.accentText} />
+          <Text style={[styles.speedBtnText, { color: colors.accentText }]}>
+            {qualityLabel}
           </Text>
         </Pressable>
 
@@ -599,6 +698,43 @@ export default function PlayerScreen({ route, navigation }: any) {
           </View>
         </Pressable>
       </Modal>
+
+      {/* Video Quality Modal */}
+      <Modal
+        visible={showQualityModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowQualityModal(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setShowQualityModal(false)}>
+          <View style={[styles.modalBox, { backgroundColor: colors.card }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Streaming Quality</Text>
+            {availableQualities.map((item) => {
+              const selected = selectedQuality === item.id;
+              return (
+                <Pressable
+                  key={item.id}
+                  style={[
+                    styles.speedOption,
+                    selected && { backgroundColor: colors.accentLight },
+                  ]}
+                  onPress={() => handleSelectQuality(item.id, item.label)}
+                >
+                  <Text
+                    style={[
+                      styles.speedOptionText,
+                      { color: selected ? colors.accentText : colors.text },
+                    ]}
+                  >
+                    {item.label} {item.id === -1 ? '(Adaptive Zero-Buffer)' : ''}
+                  </Text>
+                  {selected && <Ionicons name="checkmark" size={18} color={colors.accentText} />}
+                </Pressable>
+              );
+            })}
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -627,6 +763,29 @@ const styles = StyleSheet.create({
     width: '100%',
     height: VIDEO_HEIGHT,
     backgroundColor: '#000000',
+    position: 'relative',
+  },
+  seekFeedbackOverlay: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: '40%',
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+  },
+  seekLeft: {
+    left: 10,
+  },
+  seekRight: {
+    right: 10,
+  },
+  seekFeedbackText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '800',
+    marginTop: 4,
   },
   videoPlayer: {
     width: '100%',
