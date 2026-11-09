@@ -1,0 +1,41 @@
+{
+  "name": "pw-pro-desktop",
+  "productName": "PW Pro by Shivansh",
+  "version": "1.5.0",
+  "description": "Physics Wallah VIP Desktop Client & Admin Suite",
+  "main": "main.js",
+  "author": "Shivansh",
+  "scripts": {
+    "start": "electron .",
+    "build:portable": "electron-builder --win portable",
+    "build:installer": "electron-builder --win nsis",
+    "build": "electron-builder --win portable"
+  },
+  "build": {
+    "appId": "in.pwprobyshivansh.desktop",
+    "productName": "PW Pro by Shivansh",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        "portable"
+      ]
+    },
+    "portable": {
+      "artifactName": "PW-Pro-v${version}.exe"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "styles.css",
+      "renderer.js",
+      "src/**/*"
+    ]
+  },
+  "devDependencies": {
+    "electron": "^30.5.1",
+    "electron-builder": "^24.13.3"
+  }
+}

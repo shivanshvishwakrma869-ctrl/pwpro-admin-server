@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PW Pro by Shivansh — VIP Study Suite & Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Global App Container -->
+  <div id="app" class="app-container">
+    
+    <!-- Top Bar -->
+    <header class="top-nav">
+      <div class="nav-brand" id="btn-brand">
+        <div class="brand-logo-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+          </svg>
+        </div>
+        <div class="brand-titles">
+          <span class="brand-title">PW Pro <span class="vip-tag">VIP</span></span>
+          <span class="brand-subtitle">by Shivansh</span>
+        </div>
+      </div>
+
+      <!-- Global Search -->
+      <div class="nav-search-wrap">
+        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input type="text" id="global-search" placeholder="Search batches, teachers, or chapters... (Ctrl+K)" autocomplete="off">
+        <button id="clear-search-btn" class="clear-btn" style="display: none;">&times;</button>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="nav-actions">
+        <!-- Dual Study Mode Toggle -->
+        <button id="btn-split-mode" class="action-btn" title="Toggle Split-Screen Study Mode (Video + PDF Notes)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="12" y1="3" x2="12" y2="21"></line>
+          </svg>
+          <span>Split Study</span>
+        </button>
+
+        <!-- Admin Suite Toggle -->
+        <button id="btn-admin-toggle" class="action-btn admin-btn" title="Open Integrated Admin Panel">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+          </svg>
+          <span>Admin Suite</span>
+        </button>
+
+        <!-- VIP Status Pill -->
+        <div id="vip-status-pill" class="vip-status-pill">
+          <span class="status-dot"></span>
+          <span id="vip-status-text">VIP Active</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Live Announcement Banner -->
+    <div id="live-announcement" class="live-announcement" style="display: none;">
+      <div class="announcement-content">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M11 5L6 9H2v6h4l5 4V5z"></path>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        </svg>
+        <span id="announcement-text">Welcome to PW Pro Desktop Suite!</span>
+      </div>
+      <button id="dismiss-announcement-btn" class="dismiss-btn">&times;</button>
+    </div>
+
+    <!-- Main Views Wrapper -->
+    <main class="main-content">
+      
+      <!-- 1. BATCHES EXPLORER VIEW -->
+      <section id="view-batches" class="view active">
+        <!-- Continue Watching Carousel -->
+        <div id="continue-watching-section" class="continue-watching-section" style="display: none;">
+          <div class="section-header">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            <h3>Continue Watching</h3>
+          </div>
+          <div id="continue-watching-list" class="continue-watching-list"></div>
+        </div>
+
+        <!-- Category Filter Pills -->
+        <div class="categories-bar">
+          <div class="categories-scroll" id="categories-container"></div>
+        </div>
+
+        <!-- Section Title & Results Counter -->
+        <div class="batch-results-header">
+          <h2 id="batch-category-title">All Batches</h2>
+          <span id="batch-results-count" class="results-count">Loading batches...</span>
+        </div>
+
+        <!-- Batches Grid -->
+        <div id="batches-grid" class="batches-grid">
+          <div class="loading-spinner">
+            <div class="spinner"></div>
+            <p>Loading VIP batches & curriculum...</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. BATCH DETAIL & CHAPTERS VIEW -->
+      <section id="view-batch-detail" class="view">
+        <div class="view-header">
+          <button id="btn-back-to-batches" class="back-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+            <span>Back to Batches</span>
+          </button>
+          <h2 id="detail-batch-name" class="detail-header-title">Batch Curriculum</h2>
+        </div>
+
+        <!-- Compact Batch Summary Card -->
+        <div class="batch-overview-card" id="batch-overview-card">
+          <img id="detail-batch-image" src="" alt="Batch Image" class="overview-thumb">
+          <div class="overview-info">
+            <h3 id="detail-batch-title">Batch Title</h3>
+            <div class="overview-tags">
+              <span id="detail-batch-lang" class="tag-pill accent-tag">Hinglish</span>
+              <span id="detail-batch-faculty" class="tag-pill">Physics Wallah</span>
+              <span class="tag-pill green-tag">VIP Access Unlocked</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pinned Instant-Switch Subject Tabs -->
+        <div class="pinned-subjects-container">
+          <div class="pinned-subjects-label">SUBJECTS:</div>
+          <div id="pinned-subjects-list" class="pinned-subjects-list"></div>
+        </div>
+
+        <!-- In-Batch Chapter Search & Filters -->
+        <div class="chapter-filter-bar">
+          <div class="chapter-search-box">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="chapter-search" placeholder="Search chapters in this subject...">
+          </div>
+          <div class="chapter-pills">
+            <button class="filter-pill active" data-filter="all">All Chapters</button>
+            <button class="filter-pill" data-filter="videos">Videos Only</button>
+            <button class="filter-pill" data-filter="notes">PDF Notes Only</button>
+          </div>
+        </div>
+
+        <!-- Chapters List -->
+        <div id="chapters-list" class="chapters-list"></div>
+      </section>
+
+      <!-- 3. STUDY ROOM & DUAL-SCREEN PLAYER VIEW -->
+      <section id="view-chapter-room" class="view">
+        <div class="study-room-topbar">
+          <button id="btn-back-to-chapters" class="back-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+            <span>Back to Chapters</span>
+          </button>
+          <div class="study-breadcrumbs">
+            <span id="study-batch-crumb">Batch</span> &gt;
+            <span id="study-subject-crumb">Subject</span> &gt;
+            <span id="study-chapter-crumb" class="active-crumb">Chapter</span>
+          </div>
+          <div class="study-view-toggles">
+            <button id="btn-view-video-only" class="toggle-mode-btn" title="Full Video View">Video</button>
+            <button id="btn-view-split" class="toggle-mode-btn active" title="Side-by-side Study Mode">Dual Split</button>
+            <button id="btn-view-notes-only" class="toggle-mode-btn" title="Full Notes View">Notes</button>
+          </div>
+        </div>
+
+        <!-- Split Study Workspace -->
+        <div class="study-workspace" id="study-workspace">
+          
+          <!-- Left: Video Player Pane -->
+          <div class="video-pane" id="video-pane">
+            <div class="video-container" id="video-container">
+              <video id="hls-video" controls playsinline></video>
+              <div id="video-placeholder" class="video-placeholder" style="display: none;">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+                <p>Select a video lecture to begin streaming</p>
+              </div>
+            </div>
+
+            <!-- Video Player Controls Bar -->
+            <div class="player-custom-controls">
+              <div class="playing-lecture-meta">
+                <h4 id="playing-lecture-title">No lecture playing</h4>
+                <span id="playing-lecture-info">Direct Zero-Buffer CDN Stream</span>
+              </div>
+              <div class="player-extra-actions">
+                <!-- Quality Picker -->
+                <div class="dropdown-wrap">
+                  <button id="btn-quality" class="ctrl-btn">Quality: Auto</button>
+                  <div id="quality-menu" class="dropdown-menu"></div>
+                </div>
+
+                <!-- Speed Picker -->
+                <div class="dropdown-wrap">
+                  <button id="btn-speed" class="ctrl-btn">1.0x</button>
+                  <div id="speed-menu" class="dropdown-menu">
+                    <button data-speed="0.75">0.75x</button>
+                    <button data-speed="1.0" class="active">1.0x</button>
+                    <button data-speed="1.25">1.25x</button>
+                    <button data-speed="1.5">1.5x</button>
+                    <button data-speed="1.75">1.75x</button>
+                    <button data-speed="2.0">2.0x</button>
+                    <button data-speed="2.5">2.5x</button>
+                    <button data-speed="3.0">3.0x</button>
+                  </div>
+                </div>
+
+                <!-- Picture in Picture -->
+                <button id="btn-pip" class="ctrl-btn" title="Picture in Picture (P)">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="2" width="20" height="20" rx="2"></rect>
+                    <rect x="12" y="12" width="8" height="8" rx="1"></rect>
+                  </svg>
+                  <span>PiP</span>
+                </button>
+
+                <!-- Keyboard Shortcuts Guide -->
+                <button id="btn-shortcuts" class="ctrl-btn" title="Keyboard Shortcuts">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+                    <path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M6 16h12"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Chapter Video Lectures List -->
+            <div class="chapter-lectures-tray">
+              <div class="tray-header">
+                <h5>Lectures in this Chapter (<span id="tray-lecture-count">0</span>)</h5>
+              </div>
+              <div id="tray-lectures-list" class="tray-lectures-list"></div>
+            </div>
+          </div>
+
+          <!-- Right: PDF Notes & Materials Pane -->
+          <div class="notes-pane" id="notes-pane">
+            <div class="notes-pane-header">
+              <div class="notes-header-left">
+                <h5>Chapter Notes & Homework</h5>
+                <span id="notes-count-badge" class="badge-count">0 PDFs</span>
+              </div>
+              <button id="btn-download-all-notes" class="download-all-btn" title="Download all PDFs in this chapter to PC">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                <span>Download All</span>
+              </button>
+            </div>
+
+            <!-- PDF Tabs / Selector -->
+            <div id="pdf-tabs-list" class="pdf-tabs-list"></div>
+
+            <!-- In-App PDF Viewer Frame -->
+            <div class="pdf-viewer-container" id="pdf-viewer-container">
+              <iframe id="pdf-frame" src="" frameborder="0"></iframe>
+              <div id="pdf-placeholder" class="pdf-placeholder">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                  <line x1="16" y1="13" x2="8" y2="13"></line>
+                  <line x1="16" y1="17" x2="8" y2="17"></line>
+                </svg>
+                <p>Select a PDF note above to view in study split-mode</p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- 4. INTEGRATED ADMIN PANEL VIEW -->
+      <section id="view-admin" class="view">
+        <div class="admin-topbar">
+          <h2>PW Pro Admin Management Suite</h2>
+          <span class="admin-auth-badge">Master Authenticated</span>
+        </div>
+
+        <div class="admin-dashboard-grid">
+          
+          <!-- Neon DB Connection Status Card -->
+          <div class="admin-card">
+            <div class="card-header">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+                <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+              </svg>
+              <h3>Neon PostgreSQL Status</h3>
+            </div>
+            <div class="db-status-body">
+              <div class="status-indicator-row">
+                <span class="status-bullet connected"></span>
+                <span class="status-text">Connected: AWS us-east-2 Pooler</span>
+              </div>
+              <p class="db-meta">Database: <code>neondb</code> | SSL: <code>require</code></p>
+              <button id="btn-refresh-db" class="secondary-btn">Test Connection</button>
+            </div>
+          </div>
+
+          <!-- Key Generator Card -->
+          <div class="admin-card">
+            <div class="card-header">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>
+              </svg>
+              <h3>Generate Single-Use VIP Keys</h3>
+            </div>
+            <div class="key-gen-body">
+              <div class="form-row">
+                <label>Validity Period:</label>
+                <select id="gen-validity">
+                  <option value="0">Lifetime VIP</option>
+                  <option value="30">30 Days</option>
+                  <option value="90">90 Days</option>
+                  <option value="180">6 Months</option>
+                  <option value="365">1 Year</option>
+                </select>
+              </div>
+              <div class="form-row">
+                <label>Quantity:</label>
+                <select id="gen-count">
+                  <option value="1">1 Key</option>
+                  <option value="5">5 Keys</option>
+                  <option value="10">10 Keys</option>
+                </select>
+              </div>
+              <button id="btn-generate-keys" class="primary-btn">Generate Activation Keys</button>
+              <div id="new-keys-output" class="new-keys-output" style="display: none;"></div>
+            </div>
+          </div>
+
+          <!-- Live Broadcast Announcement Card -->
+          <div class="admin-card span-2">
+            <div class="card-header">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 5L6 9H2v6h4l5 4V5z"></path>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+              </svg>
+              <h3>Global In-App Broadcast Announcement</h3>
+            </div>
+            <div class="announcement-manage-body">
+              <input type="text" id="admin-announcement-input" placeholder="Type global notification for all Android & Desktop clients...">
+              <div class="announcement-actions">
+                <button id="btn-publish-announcement" class="primary-btn">Publish Announcement</button>
+                <button id="btn-clear-announcement" class="danger-btn">Clear Banner</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Live Database Keys Management Table -->
+          <div class="admin-card span-2">
+            <div class="card-header flex-between">
+              <div class="card-header-left">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                <h3>Active & Generated Keys (<span id="admin-keys-count">0</span>)</h3>
+              </div>
+              <button id="btn-reload-keys" class="secondary-btn">Refresh Table</button>
+            </div>
+            <div class="keys-table-container">
+              <table class="keys-table">
+                <thead>
+                  <tr>
+                    <th>Key Code</th>
+                    <th>Status</th>
+                    <th>Validity</th>
+                    <th>Expires At</th>
+                    <th>Bound Hardware ID</th>
+                    <th>Created At</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-keys-tbody">
+                  <tr><td colspan="7" class="loading-td">Loading keys from Neon database...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+    </main>
+
+    <!-- ADMIN PASSWORD UNLOCK MODAL -->
+    <div id="modal-admin-auth" class="modal-overlay" style="display: none;">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>Admin Panel Authentication</h3>
+          <button class="modal-close" id="btn-close-admin-auth">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p>Enter your master admin password to access the key generator and database console.</p>
+          <input type="password" id="admin-password-input" placeholder="Enter password..." autocomplete="current-password">
+          <p id="admin-auth-error" class="error-msg" style="display: none;"></p>
+        </div>
+        <div class="modal-footer">
+          <button id="btn-submit-admin-auth" class="primary-btn">Unlock Admin Suite</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- HARDWARE ACTIVATION MODAL -->
+    <div id="modal-activation" class="modal-overlay" style="display: none;">
+      <div class="modal-card activation-card">
+        <div class="activation-header-badge">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#FACC15" stroke-width="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+            <path d="M2 17l10 5 10-5"></path>
+            <path d="M2 12l10 5 10-5"></path>
+          </svg>
+        </div>
+        <h2>Activate PW Pro Desktop</h2>
+        <p class="activation-desc">Enter your single-use VIP activation key. Your license will be securely bound to this PC's hardware.</p>
+        
+        <div class="hardware-id-box">
+          <span>Machine Hardware ID:</span>
+          <code id="display-hardware-id">WIN-DETECTING...</code>
+        </div>
+
+        <div class="activation-input-wrap">
+          <input type="text" id="activation-key-input" placeholder="PWPRO-XXXX-XXXX" maxlength="24">
+          <button id="btn-activate-pc" class="primary-btn">Activate License</button>
+        </div>
+        <p id="activation-error" class="error-msg" style="display: none;"></p>
+      </div>
+    </div>
+
+    <!-- KEYBOARD SHORTCUTS MODAL -->
+    <div id="modal-shortcuts" class="modal-overlay" style="display: none;">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>Keyboard Shortcuts</h3>
+          <button class="modal-close" id="btn-close-shortcuts">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="shortcuts-grid">
+            <div class="shortcut-item"><kbd>Space</kbd><span>Play / Pause</span></div>
+            <div class="shortcut-item"><kbd>&larr;</kbd> / <kbd>&rarr;</kbd><span>Seek 10s backward / forward</span></div>
+            <div class="shortcut-item"><kbd>&uarr;</kbd> / <kbd>&darr;</kbd><span>Volume up / down</span></div>
+            <div class="shortcut-item"><kbd>F</kbd><span>Toggle Fullscreen</span></div>
+            <div class="shortcut-item"><kbd>M</kbd><span>Mute / Unmute</span></div>
+            <div class="shortcut-item"><kbd>P</kbd><span>Picture in Picture (PiP)</span></div>
+            <div class="shortcut-item"><kbd>D</kbd><span>Toggle Dual Split Study Mode</span></div>
+            <div class="shortcut-item"><kbd>Ctrl + K</kbd><span>Global Search</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Scripts -->
+  <script src="src/crypto.js"></script>
+  <script src="src/hls.min.js"></script>
+  <script src="src/api.js"></script>
+  <script src="renderer.js"></script>
+</body>
+</html>
