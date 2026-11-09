@@ -19,8 +19,17 @@
     },
     "win": {
       "target": [
+        "nsis",
         "portable"
       ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "PW Pro by Shivansh",
+      "artifactName": "PW-Pro-Setup-v${version}.exe"
     },
     "portable": {
       "artifactName": "PW-Pro-v${version}.exe"

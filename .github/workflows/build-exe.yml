@@ -26,22 +26,23 @@ jobs:
         run: |
           npm install
 
-      - name: Build Windows Portable EXE
+      - name: Build Windows Installer & Portable EXE
         working-directory: ./desktop
         run: |
+          npm run build:installer
           npm run build:portable
 
-      - name: Upload Windows EXE Artifact
+      - name: Upload Windows Setup Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PW-Pro-Windows-EXE
-          path: ./desktop/dist/PW-Pro-v1.5.0.exe
+          name: PW-Pro-Windows-Setup
+          path: ./desktop/dist/PW-Pro-Setup-v1.5.0.exe
           retention-days: 30
 
       - name: Publish EXE to GitHub Releases
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          gh release upload v1.5.0 ./desktop/dist/PW-Pro-Setup-v1.5.0.exe --clobber || true
           gh release upload v1.5.0 ./desktop/dist/PW-Pro-v1.5.0.exe --clobber || true
-          gh release upload v1.4.0 ./desktop/dist/PW-Pro-v1.5.0.exe --clobber || true
-          gh release upload v1.0.0 ./desktop/dist/PW-Pro-v1.5.0.exe --clobber || true
+          gh release upload v1.0.0 ./desktop/dist/PW-Pro-Setup-v1.5.0.exe --clobber || true
